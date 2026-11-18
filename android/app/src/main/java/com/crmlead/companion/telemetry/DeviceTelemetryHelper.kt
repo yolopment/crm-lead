@@ -11,12 +11,25 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.content.ContextCompat
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.net.Inet4Address
 import java.net.NetworkInterface
+import java.util.concurrent.TimeUnit
 
 object DeviceTelemetryHelper {
+
+    private const val TAG = "DeviceTelemetryHelper"
+
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
 
     /**
      * Builds a comprehensive hardware & health diagnostic snapshot from the live device.
@@ -24,22 +37,42 @@ object DeviceTelemetryHelper {
     fun getTelemetryPayload(context: Context, deviceToken: String): JSONObject {
         val hardwareId = "hw-android-${Build.MANUFACTURER.lowercase()}-${Build.MODEL.lowercase()}"
 
-        // 1. Live Battery Telemetry
-        var batteryPct = 90
+        // 1. Live Accurate Battery Telemetry
+        var batteryPct = -1
         var isCharging = false
         try {
+            val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            if (bm != null) {
+                val cap = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                if (cap in 0..100) {
+                    batteryPct = cap
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    isCharging = bm.isCharging
+                }
+            }
+
             val iFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
             val batteryStatus = context.registerReceiver(null, iFilter)
-            val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-            if (level >= 0 && scale > 0) {
-                batteryPct = ((level.toFloat() / scale.toFloat()) * 100).toInt()
+            if (batteryStatus != null) {
+                if (batteryPct < 0) {
+                    val level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                    val scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                    if (level >= 0 && scale > 0) {
+                        batteryPct = ((level.toFloat() / scale.toFloat()) * 100).toInt()
+                    }
+                }
+                val status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                isCharging = isCharging || status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+                val plugged = batteryStatus.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+                if (plugged > 0) {
+                    isCharging = true
+                }
             }
-            val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-            isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
         } catch (e: Exception) {
-            batteryPct = 90
+            Log.w(TAG, "Error reading live battery: ${e.message}")
         }
+        if (batteryPct < 0) batteryPct = 90
 
         // 2. Live Network Connection & Local IP
         var networkType = "Wi-Fi"
@@ -69,10 +102,10 @@ object DeviceTelemetryHelper {
                 }
             }
         } catch (e: Exception) {
-            // Keep defaults
+            Log.w(TAG, "Error resolving network info: ${e.message}")
         }
 
-        // 3. Permissions Diagnostics
+        // 3. Permissions Diagnostics (Call Log, Contacts, Storage, Battery Opt, SMS)
         val hasCallLog = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_CALL_LOG
@@ -81,6 +114,11 @@ object DeviceTelemetryHelper {
         val hasContacts = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_CONTACTS
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val hasSms = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_SMS
         ) == PackageManager.PERMISSION_GRANTED
 
         val hasStorage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -119,9 +157,36 @@ object DeviceTelemetryHelper {
             put("storageAccess", hasStorage)
             put("callLogAccess", hasCallLog)
             put("contactsAccess", hasContacts)
+            put("smsAccess", hasSms)
             put("batteryOptimized", batteryOptimized)
             put("recordingFolder", "Recordings/Call")
             put("recordingsWorking", true)
         }
     }
+
+    /**
+     * Sends an immediate asynchronous telemetry update to the backend server.
+     */
+    fun sendTelemetry(context: Context, serverUrl: String, deviceToken: String) {
+        if (serverUrl.isBlank() || deviceToken.isBlank()) return
+        try {
+            val payload = getTelemetryPayload(context, deviceToken)
+            val request = Request.Builder()
+                .url("${serverUrl.trimEnd('/')}/api/v1/devices/pair")
+                .header("Content-Type", "application/json")
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    Log.d(TAG, "Telemetry synced successfully: ${payload.optInt("batteryLevel")}% (charging=${payload.optBoolean("isCharging")})")
+                } else {
+                    Log.w(TAG, "Telemetry sync failed: HTTP ${response.code}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send telemetry update: ${e.message}")
+        }
+    }
 }
+

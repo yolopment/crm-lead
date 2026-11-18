@@ -11,6 +11,7 @@ import leadRoutes from './routes/lead.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import deviceRoutes from './routes/device.routes.js';
 import policyRoutes from './routes/policy.routes.js';
+import smsRoutes from './routes/sms.routes.js';
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/v1/leads', leadRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/devices', deviceRoutes);
 app.use('/api/v1/policy', policyRoutes);
+app.use('/api/v1/sms', smsRoutes);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

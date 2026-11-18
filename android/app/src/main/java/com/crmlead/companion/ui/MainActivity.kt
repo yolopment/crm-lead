@@ -137,8 +137,12 @@ class MainActivity : ComponentActivity() {
         val isOnboardingCompleted = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
         val isPaired = prefs.getBoolean(KEY_IS_PAIRED, false)
         selectedSimSlot = prefs.getInt(KEY_WORK_SIM_SLOT, -1)
+        val permissionsGranted = areEssentialPermissionsGranted()
 
-        currentStep = if (isOnboardingCompleted && isPaired) {
+        currentStep = if (isPaired && (isOnboardingCompleted || permissionsGranted)) {
+            if (!isOnboardingCompleted) {
+                prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, true).apply()
+            }
             SetupStep.MAIN_APP
         } else if (isPaired) {
             SetupStep.SETUP_OVERVIEW
@@ -391,6 +395,23 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             com.crmlead.companion.contact.ContactHelper.syncContactNamesWithLocalDb(this@MainActivity)
         }
+        val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+        val isPaired = prefs.getBoolean(KEY_IS_PAIRED, false)
+        val serverUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
+        val devToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
+        if (isPaired && devToken.isNotEmpty()) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                DeviceTelemetryHelper.sendTelemetry(this@MainActivity, serverUrl, devToken)
+            }
+        }
+    }
+
+    private fun areEssentialPermissionsGranted(): Boolean {
+        val hasCallLog = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
+        val hasPhoneState = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+        val hasContacts = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        val hasStorage = checkStorageAccess()
+        return hasCallLog && hasPhoneState && hasContacts && hasStorage
     }
 
     private fun checkStorageAccess(): Boolean {
@@ -430,7 +451,9 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.READ_CALL_LOG,
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_CONTACTS
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.READ_SMS,
+            Manifest.permission.RECEIVE_SMS
         )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -539,7 +562,13 @@ class MainActivity : ComponentActivity() {
                     isSigningIn = false
                     CallRecordingService.start(this@MainActivity)
                     Toast.makeText(this@MainActivity, "✅ Welcome back, $userName!", Toast.LENGTH_SHORT).show()
-                    currentStep = SetupStep.SETUP_OVERVIEW
+                    val alreadyGranted = areEssentialPermissionsGranted()
+                    if (alreadyGranted) {
+                        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, true).apply()
+                        currentStep = SetupStep.MAIN_APP
+                    } else {
+                        currentStep = SetupStep.SETUP_OVERVIEW
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -599,7 +628,13 @@ class MainActivity : ComponentActivity() {
                     isSigningIn = false
                     CallRecordingService.start(this@MainActivity)
                     Toast.makeText(this@MainActivity, "✅ Paired to $userName!", Toast.LENGTH_SHORT).show()
-                    currentStep = SetupStep.SETUP_OVERVIEW
+                    val alreadyGranted = areEssentialPermissionsGranted()
+                    if (alreadyGranted) {
+                        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, true).apply()
+                        currentStep = SetupStep.MAIN_APP
+                    } else {
+                        currentStep = SetupStep.SETUP_OVERVIEW
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -673,7 +708,6 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putBoolean(KEY_IS_PAIRED, false)
-            .putBoolean(KEY_ONBOARDING_COMPLETED, false)
             .apply()
         currentStep = SetupStep.SIGN_IN
     }

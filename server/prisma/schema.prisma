@@ -55,6 +55,7 @@ model Organization {
   devices          Device[]
   invitations      Invitation[]
   dntList          DoNotTrack[]
+  smsMessages      SmsMessage[]
 }
 
 model User {
@@ -78,6 +79,7 @@ model User {
   devices        Device[]
   notes          Note[]
   privateNumbers PrivateNumber[]
+  smsMessages    SmsMessage[]
 }
 
 model Lead {
@@ -99,6 +101,7 @@ model Lead {
 
   calls          Call[]
   notes          Note[]
+  smsMessages    SmsMessage[]
 
   @@index([orgId, phone])
 }
@@ -199,4 +202,25 @@ model PrivateNumber {
   @@unique([userId, phone])
   @@index([userId, phone])
 }
+
+model SmsMessage {
+  id           String        @id @default(uuid())
+  orgId        String
+  userId       String
+  phoneNumber  String
+  contactName  String?
+  body         String
+  direction    CallDirection @default(INBOUND)
+  timestamp    DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead         Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  leadId       String?
+
+  @@index([orgId, phoneNumber])
+  @@index([orgId, timestamp])
+}
+
 

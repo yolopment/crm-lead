@@ -6,7 +6,8 @@ import {
   Phone, PhoneOff, Plus, RefreshCw, X, CheckCircle2, Circle, Clock,
   Smartphone, Shield, Settings, SlidersHorizontal, ArrowRight, UserPlus,
   Trash2, Mail, Check, AlertTriangle, AlertCircle, HeartHandshake, Mic, MicOff,
-  Inbox, Upload, Edit2, Battery, Zap, Wifi, Folder, Activity, ChevronRight
+  Inbox, Upload, Edit2, Battery, Zap, Wifi, Folder, Activity, ChevronRight,
+  MessageSquare, Send, MessageCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import AudioPlayer from '@/components/AudioPlayer';
@@ -97,6 +98,18 @@ interface PrivateNumberItem {
   createdAt: string;
 }
 
+interface SmsItem {
+  id: string;
+  phoneNumber: string;
+  contactName: string | null;
+  body: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  timestamp: string;
+  createdAt: string;
+  lead?: { id: string; fullName: string; stage: string; phone: string } | null;
+  user?: { id: string; name: string; email: string } | null;
+}
+
 const SUBTABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'missed', label: 'Missed callbacks' },
@@ -104,6 +117,7 @@ const SUBTABS = [
   { id: 'team', label: 'Team' },
   { id: 'call_policy', label: 'Call policy' },
   { id: 'devices', label: 'Devices' },
+  { id: 'sms', label: 'SMS Messages' },
 ];
 
 export default function CallsDashboard() {
@@ -155,6 +169,12 @@ export default function CallsDashboard() {
   const [selectedDeviceModal, setSelectedDeviceModal] = useState<any | null>(null);
   const [deviceDeleting, setDeviceDeleting] = useState(false);
 
+  // SMS messages state
+  const [smsList, setSmsList] = useState<SmsItem[]>([]);
+  const [smsSearch, setSmsSearch] = useState('');
+  const [smsDirectionFilter, setSmsDirectionFilter] = useState<'ALL' | 'INBOUND' | 'OUTBOUND'>('ALL');
+  const [smsDeleting, setSmsDeleting] = useState(false);
+
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadData = useCallback(async (silent = false) => {
@@ -164,13 +184,14 @@ export default function CallsDashboard() {
       const params = new URLSearchParams({ range: dateRange, agentId: selectedAgent });
       if (searchTerm) params.set('search', searchTerm);
 
-      const [statsData, teamData, callsData, policyData, devicesData, privateData] = await Promise.all([
+      const [statsData, teamData, callsData, policyData, devicesData, privateData, smsData] = await Promise.all([
         fetchWithAuth(`/calls/stats?${params}`),
         fetchWithAuth('/team'),
         fetchWithAuth(`/calls?${params}&limit=50`),
         fetchWithAuth('/policy').catch(() => null),
         fetchWithAuth('/devices').catch(() => []),
         fetchWithAuth('/policy/private-numbers').catch(() => []),
+        fetchWithAuth('/sms?limit=100').catch(() => ({ messages: [] })),
       ]);
 
       setStats(statsData);
@@ -184,6 +205,7 @@ export default function CallsDashboard() {
       if (policyData) setPolicy(policyData);
       if (Array.isArray(devicesData)) setAllDevices(devicesData);
       if (Array.isArray(privateData)) setPrivateNumbers(privateData);
+      if (Array.isArray(smsData?.messages)) setSmsList(smsData.messages);
     } catch (err: any) {
       if (!silent) setToast({ message: err.message || 'Failed to load data', type: 'error' });
     } finally {
@@ -278,6 +300,20 @@ export default function CallsDashboard() {
       setToast({ message: err.message || 'Failed to unpair device', type: 'error' });
     } finally {
       setDeviceDeleting(false);
+    }
+  };
+
+  const handleDeleteSms = async (smsId: string) => {
+    if (!window.confirm('Are you sure you want to delete this SMS message?')) return;
+    setSmsDeleting(true);
+    try {
+      await fetchWithAuth(`/sms/${smsId}`, { method: 'DELETE' });
+      setSmsList(prev => prev.filter(s => s.id !== smsId));
+      setToast({ message: 'SMS message deleted', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to delete SMS', type: 'error' });
+    } finally {
+      setSmsDeleting(false);
     }
   };
 
@@ -519,6 +555,7 @@ export default function CallsDashboard() {
                 {tab.id === 'team' && <Users className="w-3.5 h-3.5" />}
                 {tab.id === 'call_policy' && <Shield className="w-3.5 h-3.5" />}
                 {tab.id === 'devices' && <Smartphone className="w-3.5 h-3.5" />}
+                {tab.id === 'sms' && <MessageSquare className="w-3.5 h-3.5" />}
                 <span>{tab.label}</span>
               </button>
             );
@@ -1448,6 +1485,209 @@ export default function CallsDashboard() {
       )}
 
       {/* ========================================================================= */}
+      {/* TAB 6: SMS MESSAGES (Mobile SMS Telemetry & Admin Inbox) */}
+      {/* ========================================================================= */}
+      {activeTab === 'sms' && (
+        <div className="space-y-4">
+          {/* Header & Controls */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">SMS Communications Log</h2>
+              <p className="text-xs text-slate-400">
+                Inbound & outbound text messages synchronized directly from paired agent mobile phones.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => loadData(true)}
+                disabled={refreshing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
+                <span>{refreshing ? 'Syncing...' : 'Refresh Messages'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Stat Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                <span>TOTAL MESSAGES</span>
+              </div>
+              <div className="text-2xl font-black text-slate-900 mt-2">{smsList.length}</div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" />
+                <span>INBOUND (CLIENTS)</span>
+              </div>
+              <div className="text-2xl font-black text-emerald-600 mt-2">
+                {smsList.filter(s => s.direction === 'INBOUND').length}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <ArrowUpRight className="w-3.5 h-3.5 text-purple-600" />
+                <span>OUTBOUND (AGENTS)</span>
+              </div>
+              <div className="text-2xl font-black text-purple-600 mt-2">
+                {smsList.filter(s => s.direction === 'OUTBOUND').length}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <Users className="w-3.5 h-3.5 text-slate-600" />
+                <span>UNIQUE CONTACTS</span>
+              </div>
+              <div className="text-2xl font-black text-slate-900 mt-2">
+                {new Set(smsList.map(s => s.phoneNumber)).size}
+              </div>
+            </div>
+          </div>
+
+          {/* Search & Direction Filter Row */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search messages by contact name, phone, or text content..."
+                value={smsSearch}
+                onChange={e => setSmsSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg text-xs">
+              {(['ALL', 'INBOUND', 'OUTBOUND'] as const).map(dir => (
+                <button
+                  key={dir}
+                  onClick={() => setSmsDirectionFilter(dir)}
+                  className={`px-3 py-1 rounded-md font-semibold text-xs transition ${
+                    smsDirectionFilter === dir
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {dir === 'ALL' ? 'All' : dir === 'INBOUND' ? 'Inbound Only' : 'Outbound Only'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* SMS Messages Table & Cards */}
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/75 text-[10px] font-bold uppercase text-slate-400 border-b border-slate-100">
+                  <tr>
+                    <th className="py-3 px-6">CONTACT / PHONE</th>
+                    <th className="py-3 px-6">DIRECTION</th>
+                    <th className="py-3 px-6">MESSAGE TEXT</th>
+                    <th className="py-3 px-6">DATE & TIME</th>
+                    <th className="py-3 px-6">AGENT</th>
+                    <th className="py-3 px-6 text-right">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(() => {
+                    const filtered = smsList.filter(s => {
+                      if (smsDirectionFilter !== 'ALL' && s.direction !== smsDirectionFilter) return false;
+                      if (!smsSearch.trim()) return true;
+                      const q = smsSearch.toLowerCase();
+                      return (
+                        s.phoneNumber.toLowerCase().includes(q) ||
+                        (s.contactName && s.contactName.toLowerCase().includes(q)) ||
+                        (s.lead?.fullName && s.lead.fullName.toLowerCase().includes(q)) ||
+                        s.body.toLowerCase().includes(q)
+                      );
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400">
+                            <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                            No SMS messages matched your filter. Incoming & outgoing text messages from paired devices will appear here automatically.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return filtered.map(msg => (
+                      <tr key={msg.id} className="hover:bg-slate-50/50 transition">
+                        <td className="py-4 px-6">
+                          <div className="font-bold text-slate-900">
+                            {msg.contactName || msg.lead?.fullName || 'Contact'}
+                          </div>
+                          <div className="font-mono text-[11px] text-slate-500 mt-0.5">
+                            {msg.phoneNumber}
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          {msg.direction === 'INBOUND' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                              <ArrowDownLeft className="w-3 h-3 text-emerald-600" />
+                              <span>Inbound</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                              <ArrowUpRight className="w-3 h-3 text-blue-600" />
+                              <span>Outbound</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-6 max-w-md">
+                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-800 break-words leading-relaxed">
+                            {msg.body}
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="font-medium text-slate-700 text-xs">
+                            {new Date(msg.timestamp).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="font-semibold text-slate-800 text-xs">
+                            {msg.user?.name || 'AFTAB SEKH'}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {msg.user?.email || 'yolopment@gmail.com'}
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6 text-right">
+                          <button
+                            onClick={() => handleDeleteSms(msg.id)}
+                            disabled={smsDeleting}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            title="Delete SMS message"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: Add Note */}
       {/* ========================================================================= */}
       {noteModal && (
@@ -1987,6 +2227,14 @@ export default function CallsDashboard() {
                   <div>
                     <div className="font-semibold text-slate-800">Battery Optimization Whitelist</div>
                     <div className="text-[10px] text-slate-400">Unrestricted 24/7 background worker active</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-slate-800">SMS Communications Tracking</div>
+                    <div className="text-[10px] text-slate-400">Permission granted for inbound & outbound SMS sync</div>
                   </div>
                 </div>
               </div>
