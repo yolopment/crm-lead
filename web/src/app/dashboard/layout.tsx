@@ -115,7 +115,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Download Companion APK */}
             <a
-              href="#"
+              href="/downloads/crm-companion.apk"
+              download="crm-companion.apk"
               className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-full text-xs font-medium border border-emerald-200 transition"
             >
               <Download className="w-3.5 h-3.5" />
