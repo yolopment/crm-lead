@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">CRM Lead Companion</string>
+    <string name="service_notification_channel">Call Detection Service</string>
+    <string name="service_running_title">CRM Call Sync Active</string>
+    <string name="service_running_desc">Automatically detecting calls and syncing recordings with CRM.</string>
+</resources>
+

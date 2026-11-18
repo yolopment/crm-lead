@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // For MySQL on Hostinger, change to "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  AGENT
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  CONNECTED
+  MISSED
+  BUSY
+  FAILED
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  WON
+  LOST
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  phone       String?
+  website     String?
+  callPolicy  String?  @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  leads       Lead[]
+  calls       Call[]
+  devices     Device[]
+}
+
+model User {
+  id             String        @id @default(uuid())
+  orgId          String
+  organization   Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name           String
+  email          String        @unique
+  password       String
+  phone          String?
+  role           Role          @default(AGENT)
+  isOnLeave      Boolean       @default(false)
+  avatarUrl      String?
+  fcmToken       String?
+  deviceToken    String?       // Used to authenticate mobile sync requests
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  calls          Call[]
+  assignedLeads  Lead[]        @relation("AssignedLeads")
+  devices        Device[]
+  notes          Note[]
+}
+
+model Lead {
+  id             String        @id @default(uuid())
+  orgId          String
+  organization   Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  assignedToId   String?
+  assignedTo     User?         @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
+  fullName       String?
+  phone          String
+  email          String?
+  source         String        @default("manual") // meta_ads, google_ads, website, inbound_call
+  campaignName   String?
+  adName         String?
+  stage          LeadStage     @default(NEW)
+  tags           String?       // JSON string or comma-separated e.g. "hot,callback"
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  calls          Call[]
+  notes          Note[]
+
+  @@index([orgId, phone])
+}
+
+model Call {
+  id             String        @id @default(uuid())
+  orgId          String
+  organization   Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId         String?
+  lead           Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  phoneNumber    String
+  direction      CallDirection
+  status         CallStatus    @default(CONNECTED)
+  durationSec    Int           @default(0)
+  startedAt      DateTime      @default(now())
+  endedAt        DateTime?
+  audioPath      String?       // Local file path on Hostinger VPS or S3 key
+  audioSize      Int?          // File size in bytes
+  notes          String?
+  tags           String?       // e.g. "hot,followup"
+  deviceId       String?
+  createdAt      DateTime      @default(now())
+
+  @@index([orgId, startedAt])
+  @@index([orgId, phoneNumber])
+}
+
+model Device {
+  id               String       @id @default(uuid())
+  orgId            String
+  organization     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceHardwareId String       @unique
+  deviceName       String?
+  androidVersion   String?
+  appVersion       String?
+  batteryLevel     Int?
+  lastSyncAt       DateTime?
+  pairingToken     String?      @unique
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
