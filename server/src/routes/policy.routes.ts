@@ -16,3 +16,4 @@ router.post('/dnt', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), PolicyControlle
 router.delete('/dnt/:id', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), PolicyController.removeDnt);
 
 export default router;
+

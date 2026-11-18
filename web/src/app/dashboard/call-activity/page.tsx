@@ -37,7 +37,8 @@ export default function CallActivityPage() {
         fetchWithAuth('/team'),
       ]);
       setData(activityData || []);
-      setTeam(teamData || []);
+      const members = Array.isArray(teamData) ? teamData : (teamData?.members || []);
+      setTeam(members);
     } catch (err: any) {
       setToast({ message: err.message || 'Failed to load', type: 'error' });
     } finally {
@@ -106,7 +107,7 @@ export default function CallActivityPage() {
             <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)}
               className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="all">All agents</option>
-              {team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {(Array.isArray(team) ? team : []).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
         </div>

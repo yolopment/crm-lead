@@ -37,7 +37,8 @@ export default function SettingsPage() {
     setTeamLoading(true);
     try {
       const data = await fetchWithAuth('/team');
-      setTeam(data || []);
+      const members = Array.isArray(data) ? data : (data?.members || []);
+      setTeam(members);
     } catch (err: any) {
       setToast({ message: err.message, type: 'error' });
     } finally {
@@ -239,7 +240,7 @@ export default function SettingsPage() {
                 ))}</div>
               ) : (
                 <div className="space-y-3">
-                  {team.map(member => (
+                  {(Array.isArray(team) ? team : []).map(member => (
                     <div key={member.id} className="border border-slate-100 rounded-xl p-4 hover:border-slate-200 transition">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-center gap-3">

@@ -56,9 +56,10 @@ export default function LeadsPage() {
         fetchWithAuth(`/leads?${params}`),
         fetchWithAuth('/team'),
       ]);
-      setLeads(leadsData.leads || []);
-      setTotal(leadsData.pagination?.total || 0);
-      setTeam(teamData || []);
+      setLeads(leadsData?.leads || []);
+      setTotal(leadsData?.pagination?.total || 0);
+      const members = Array.isArray(teamData) ? teamData : (teamData?.members || []);
+      setTeam(members);
     } catch (err: any) {
       setToast({ message: err.message, type: 'error' });
     } finally {
@@ -170,7 +171,7 @@ export default function LeadsPage() {
         <select value={agentFilter} onChange={e => setAgentFilter(e.target.value)}
           className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="all">All Agents</option>
-          {team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          {(Array.isArray(team) ? team : []).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
       </div>
 
