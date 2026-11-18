@@ -82,6 +82,12 @@ interface PolicyData {
   dntList: Array<{ id: string; phone: string; reason: string | null; createdAt: string }>;
 }
 
+interface PrivateNumberItem {
+  id: string;
+  phone: string;
+  createdAt: string;
+}
+
 const SUBTABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'missed', label: 'Missed callbacks' },
@@ -128,6 +134,14 @@ export default function CallsDashboard() {
   const [renameValue, setRenameValue] = useState('');
   const [renameLoading, setRenameLoading] = useState(false);
 
+  // Private numbers state
+  const [privateNumbers, setPrivateNumbers] = useState<PrivateNumberItem[]>([]);
+  const [showAddPrivateModal, setShowAddPrivateModal] = useState(false);
+  const [showAddManyPrivateModal, setShowAddManyPrivateModal] = useState(false);
+  const [privatePhoneInput, setPrivatePhoneInput] = useState('');
+  const [privateBulkInput, setPrivateBulkInput] = useState('');
+  const [privateLoading, setPrivateLoading] = useState(false);
+
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadData = useCallback(async (silent = false) => {
@@ -137,12 +151,13 @@ export default function CallsDashboard() {
       const params = new URLSearchParams({ range: dateRange, agentId: selectedAgent });
       if (searchTerm) params.set('search', searchTerm);
 
-      const [statsData, teamData, callsData, policyData, devicesData] = await Promise.all([
+      const [statsData, teamData, callsData, policyData, devicesData, privateData] = await Promise.all([
         fetchWithAuth(`/calls/stats?${params}`),
         fetchWithAuth('/team'),
         fetchWithAuth(`/calls?${params}&limit=50`),
         fetchWithAuth('/policy').catch(() => null),
         fetchWithAuth('/devices').catch(() => []),
+        fetchWithAuth('/policy/private-numbers').catch(() => []),
       ]);
 
       setStats(statsData);
@@ -155,6 +170,7 @@ export default function CallsDashboard() {
       setCalls(callsData?.calls || []);
       if (policyData) setPolicy(policyData);
       if (Array.isArray(devicesData)) setAllDevices(devicesData);
+      if (Array.isArray(privateData)) setPrivateNumbers(privateData);
     } catch (err: any) {
       if (!silent) setToast({ message: err.message || 'Failed to load data', type: 'error' });
     } finally {
@@ -320,6 +336,57 @@ export default function CallsDashboard() {
       setToast({ message: 'Number removed from Do-Not-Track list', type: 'info' });
     } catch (err: any) {
       setToast({ message: err.message || 'Failed to remove DNT number', type: 'error' });
+    }
+  };
+
+  const handleAddPrivateNumber = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!privatePhoneInput.trim()) return;
+    setPrivateLoading(true);
+    try {
+      const res = await fetchWithAuth('/policy/private-numbers', {
+        method: 'POST',
+        body: JSON.stringify({ phone: privatePhoneInput.trim() }),
+      });
+      setPrivateNumbers(prev => [res.entry, ...prev.filter(p => p.id !== res.entry?.id)]);
+      setShowAddPrivateModal(false);
+      setPrivatePhoneInput('');
+      setToast({ message: 'Private number added', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to add private number', type: 'error' });
+    } finally {
+      setPrivateLoading(false);
+    }
+  };
+
+  const handleBulkAddPrivateNumbers = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!privateBulkInput.trim()) return;
+    setPrivateLoading(true);
+    try {
+      await fetchWithAuth('/policy/private-numbers/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ text: privateBulkInput.trim() }),
+      });
+      const updatedList = await fetchWithAuth('/policy/private-numbers');
+      if (Array.isArray(updatedList)) setPrivateNumbers(updatedList);
+      setShowAddManyPrivateModal(false);
+      setPrivateBulkInput('');
+      setToast({ message: 'Private numbers imported successfully', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to import numbers', type: 'error' });
+    } finally {
+      setPrivateLoading(false);
+    }
+  };
+
+  const handleRemovePrivateNumber = async (id: string) => {
+    try {
+      await fetchWithAuth(`/policy/private-numbers/${id}`, { method: 'DELETE' });
+      setPrivateNumbers(prev => prev.filter(p => p.id !== id));
+      setToast({ message: 'Private number removed', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to remove private number', type: 'error' });
     }
   };
 
@@ -764,6 +831,91 @@ export default function CallsDashboard() {
             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
               No leads are waiting for a callback within the chosen window. New misses will appear here as they happen.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: CALL SETTINGS / PRIVATE NUMBERS (LeadZam Screenshot 2) */}
+      {/* ========================================================================= */}
+      {activeTab === 'call_settings' && (
+        <div className="space-y-6">
+          {/* Card 1: My Private Numbers */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">My Private Numbers</h2>
+                <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
+                  Calls with these numbers won&apos;t be tracked by LeadZam for your account — no call log, no recording, no CRM activity. Only you can see and change this list. It applies from now on and doesn&apos;t remove calls already recorded.
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => setShowAddManyPrivateModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm"
+                >
+                  <Upload className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Add many</span>
+                </button>
+                <button
+                  onClick={() => setShowAddPrivateModal(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 shadow-sm transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add number</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Private Numbers Table */}
+            <div className="border-t border-slate-100">
+              <div className="flex items-center justify-between py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <div>NUMBER</div>
+                <div>ACTIONS</div>
+              </div>
+
+              {privateNumbers.length === 0 ? (
+                <div className="py-12 text-center border-t border-slate-100">
+                  <p className="text-xs text-slate-400 font-medium">No private numbers added yet</p>
+                  <p className="text-[11px] text-slate-300 mt-0.5">Add numbers you never want tracked for your personal account</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 border-t border-slate-100">
+                  {privateNumbers.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between py-3.5 hover:bg-slate-50/50 transition">
+                      <div className="font-semibold text-slate-900 text-sm font-mono tracking-tight">
+                        {item.phone}
+                      </div>
+                      <div>
+                        <button
+                          onClick={() => handleRemovePrivateNumber(item.id)}
+                          className="text-slate-400 hover:text-red-600 p-1 rounded transition"
+                          title="Remove from private numbers"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card 2: Company Do-Not-Track */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Company Do-Not-Track</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
+                Applies to calls from every user in your organization — not just yours. Numbers added there are hidden for the whole company, so keep personal ones on your own list above.
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab('call_policy')}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 shrink-0 transition"
+            >
+              Manage company DNT
+            </button>
           </div>
         </div>
       )}
@@ -1348,6 +1500,114 @@ export default function CallsDashboard() {
           </div>
         </div>
       )}
+      {/* Add a Private Number Modal (LeadZam Screenshot 3) */}
+      {showAddPrivateModal && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowAddPrivateModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5">
+              <h3 className="font-bold text-slate-900 text-base">Add a private number</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Calls with this number won&apos;t be tracked for your account.
+              </p>
+            </div>
+            <form onSubmit={handleAddPrivateNumber} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  PHONE NUMBER
+                </label>
+                <input
+                  type="tel"
+                  autoFocus
+                  required
+                  placeholder="+91 98765 43210"
+                  value={privatePhoneInput}
+                  onChange={(e) => setPrivatePhoneInput(e.target.value)}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex justify-end items-center gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddPrivateModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={privateLoading || !privatePhoneInput.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 transition shadow-sm"
+                >
+                  {privateLoading ? 'Adding...' : 'Add to list'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Private Numbers in Bulk Modal */}
+      {showAddManyPrivateModal && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowAddManyPrivateModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Add private numbers in bulk</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Paste multiple phone numbers separated by commas or line breaks.
+                </p>
+              </div>
+              <button onClick={() => setShowAddManyPrivateModal(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleBulkAddPrivateNumbers} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  PHONE NUMBERS
+                </label>
+                <textarea
+                  rows={5}
+                  required
+                  placeholder="+91 98765 43210&#10;+91 98765 43211&#10;9775192725"
+                  value={privateBulkInput}
+                  onChange={(e) => setPrivateBulkInput(e.target.value)}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                />
+              </div>
+              <div className="flex justify-end items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddManyPrivateModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={privateLoading || !privateBulkInput.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 transition shadow-sm"
+                >
+                  {privateLoading ? 'Importing...' : 'Add numbers'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Rename Contact / Lead Modal */}
       {renameModal && (
         <div

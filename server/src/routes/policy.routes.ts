@@ -15,5 +15,11 @@ router.post('/', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), PolicyController.u
 router.post('/dnt', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), PolicyController.addDnt);
 router.delete('/dnt/:id', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), PolicyController.removeDnt);
 
+// User Personal Private Numbers list
+router.get('/private-numbers', PolicyController.getPrivateNumbers);
+router.post('/private-numbers', PolicyController.addPrivateNumber);
+router.post('/private-numbers/bulk', PolicyController.bulkAddPrivateNumbers);
+router.delete('/private-numbers/:id', PolicyController.removePrivateNumber);
+
 export default router;
 

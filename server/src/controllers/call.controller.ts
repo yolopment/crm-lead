@@ -41,6 +41,19 @@ export class CallController {
         const callStartTime = startedAt ? new Date(startedAt) : new Date();
         const trimmedContactName = contactName?.trim();
 
+        // Check if phone number is in Company DNT or User's Private Numbers
+        const isCompanyDnt = await prisma.doNotTrack.findFirst({
+          where: { orgId, phone: cleanPhone },
+        });
+        const isPrivateNumber = await prisma.privateNumber.findFirst({
+          where: { userId, phone: cleanPhone },
+        });
+
+        if (isCompanyDnt || isPrivateNumber) {
+          syncedRecords.push({ id: `dnt-${cleanPhone}`, status: 'ignored_dnt' });
+          continue;
+        }
+
         // Check if this exact call was already logged to prevent duplicates
         const existingCall = await prisma.call.findFirst({
           where: {
