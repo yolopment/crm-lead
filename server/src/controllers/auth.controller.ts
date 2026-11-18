@@ -97,6 +97,17 @@ export class AuthController {
         return;
       }
 
+      // Ensure user has a deviceToken for companion mobile app syncing
+      let deviceToken = user.deviceToken;
+      if (!deviceToken) {
+        const crypto = await import('crypto');
+        deviceToken = crypto.randomBytes(8).toString('hex');
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { deviceToken },
+        });
+      }
+
       const token = jwt.sign(
         { userId: user.id, orgId: user.orgId },
         config.jwtSecret,
@@ -112,6 +123,7 @@ export class AuthController {
           email: user.email,
           phone: user.phone,
           role: user.role,
+          deviceToken,
           isOnLeave: user.isOnLeave,
         },
         organization: {
