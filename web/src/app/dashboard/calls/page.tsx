@@ -6,7 +6,7 @@ import {
   Phone, PhoneOff, Plus, RefreshCw, X, CheckCircle2, Circle, Clock,
   Smartphone, Shield, Settings, SlidersHorizontal, ArrowRight, UserPlus,
   Trash2, Mail, Check, AlertTriangle, AlertCircle, HeartHandshake, Mic, MicOff,
-  Inbox
+  Inbox, Upload
 } from 'lucide-react';
 import Link from 'next/link';
 import AudioPlayer from '@/components/AudioPlayer';
@@ -236,6 +236,28 @@ export default function CallsDashboard() {
       loadData(true);
     } catch (err: any) {
       setToast({ message: err.message || 'Failed to resend invite', type: 'error' });
+    }
+  };
+
+  const handleUploadAudio = async (callId: string, file?: File | null) => {
+    if (!file) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const formData = new FormData();
+    formData.append('audio', file);
+    setToast({ message: 'Uploading recording...', type: 'info' });
+    try {
+      const res = await fetch(`${API_BASE}/calls/${callId}/upload-recording`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      setToast({ message: 'Recording attached to call successfully!', type: 'success' });
+      loadData(true);
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to upload recording', type: 'error' });
     }
   };
 
@@ -668,9 +690,24 @@ export default function CallsDashboard() {
                         durationFormatted={call.durationFormatted}
                       />
                     ) : (
-                      <div className="flex items-center gap-1 text-xs text-slate-300 font-medium px-2 py-1">
-                        <MicOff className="w-3.5 h-3.5 text-slate-300" />
-                        <span>No rec.</span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 text-xs text-slate-300 font-medium px-1.5 py-0.5">
+                          <MicOff className="w-3.5 h-3.5 text-slate-300" />
+                          <span>No rec.</span>
+                        </div>
+                        <label
+                          className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100/70 border border-blue-200/60 rounded px-2 py-0.5 cursor-pointer font-medium transition-colors"
+                          title="Attach audio recording file"
+                        >
+                          <Upload className="w-3 h-3 text-blue-500" />
+                          <span>Upload</span>
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            className="hidden"
+                            onChange={(e) => handleUploadAudio(call.id, e.target.files?.[0])}
+                          />
+                        </label>
                       </div>
                     )}
                   </div>

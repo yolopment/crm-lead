@@ -20,6 +20,9 @@ interface CallDao {
     @Query("SELECT * FROM calls ORDER BY startedAt DESC LIMIT 50")
     fun getAllCallsFlow(): Flow<List<CallEntity>>
 
+    @Query("SELECT * FROM calls ORDER BY startedAt DESC LIMIT 200")
+    suspend fun getAllCallsList(): List<CallEntity>
+
     @Query("SELECT * FROM calls WHERE phoneNumber = :phone AND startedAt >= :sinceTime ORDER BY startedAt DESC LIMIT 1")
     suspend fun findRecentCall(phone: String, sinceTime: Long): CallEntity?
 }

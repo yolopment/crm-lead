@@ -10,6 +10,7 @@ router.get('/:callId/audio', authenticate, CallController.streamAudio);
 
 // Call Synchronization endpoints (used by Android companion app)
 router.post('/sync', authenticate, CallController.syncCalls);
+router.post('/upload-by-match', authenticate, audioUpload.single('audio'), CallController.uploadByMatch);
 router.post('/:callId/upload-recording', authenticate, audioUpload.single('audio'), CallController.uploadRecording);
 router.post('/:callId/audio', authenticate, audioUpload.single('audio'), CallController.uploadRecording);
 

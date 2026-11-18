@@ -80,8 +80,8 @@ class PhoneStateReceiver : BroadcastReceiver() {
 
                 // Delay 2 seconds to allow native dialer to finalize writing recording file to disk
                 CoroutineScope(Dispatchers.IO).launch {
-                    delay(2000)
-                    val recordingFile = CallAudioDetector.findRecordingForCall(context, phone, callStartTime, callEndTime)
+                    delay(2500)
+                    val recordingFile = CallAudioDetector.findRecordingForCall(context, phone, callStartTime, callEndTime, durationSec)
 
                     val callEntity = CallEntity(
                         phoneNumber = phone,

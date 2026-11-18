@@ -182,7 +182,7 @@ fun PhoneCallIllustration(isCallStep: Boolean = true, isNotificationStep: Boolea
 @Composable
 fun SignInScreen(
     initialEmail: String = "",
-    initialServerUrl: String = "http://192.168.1.40:5001",
+    initialServerUrl: String = "http://192.168.1.27:5001",
     initialToken: String = "",
     isLoading: Boolean,
     onSignIn: (email: String, pass: String, serverUrl: String) -> Unit,
@@ -1249,10 +1249,65 @@ fun CompanionDashboardScreen(
     serverUrl: String,
     workSimName: String,
     recentCalls: List<CallEntity>,
+    isStorageAccessGranted: Boolean,
+    isSyncingRecordings: Boolean,
+    syncProgressStatus: String,
     onSyncNow: () -> Unit,
+    onSyncRecordings: () -> Unit,
+    onRequestStorageAccess: () -> Unit,
+    onUpdateServerUrl: (newUrl: String) -> Unit,
     onReviewPermissions: () -> Unit,
     onSignOut: () -> Unit
 ) {
+    var showServerDialog by remember { mutableStateOf(false) }
+    var tempServerUrl by remember { mutableStateOf(serverUrl) }
+
+    if (showServerDialog) {
+        AlertDialog(
+            onDismissRequest = { showServerDialog = false },
+            title = {
+                Text("Change Server / Wi-Fi IP", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter your current local Wi-Fi IP or Hostinger server domain. If you changed Wi-Fi, update the IP here.",
+                        fontSize = 13.sp,
+                        color = TextMuted,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    OutlinedTextField(
+                        value = tempServerUrl,
+                        onValueChange = { tempServerUrl = it },
+                        label = { Text("Server URL") },
+                        placeholder = { Text("http://192.168.1.27:5001") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (tempServerUrl.isNotBlank()) {
+                            onUpdateServerUrl(tempServerUrl.trim())
+                            showServerDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                ) {
+                    Text("Save & Connect")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showServerDialog = false }) {
+                    Text("Cancel", color = TextSubtle)
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1298,7 +1353,47 @@ fun CompanionDashboardScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Storage Permission Alert Banner (if needed for Vivo recordings)
+        if (!isStorageAccessGranted) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onRequestStorageAccess() },
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.linearGradient(listOf(Color(0xFFFCD34D), Color(0xFFFCD34D))))
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("⚠️", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Enable Recording File Access",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF92400E)
+                        )
+                        Text(
+                            text = "Tap to grant storage permission so Lead CRM can auto-fetch Vivo call audio.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFB45309)
+                        )
+                    }
+                    Text(
+                        text = "Grant",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFB45309),
+                        fontSize = 13.sp
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         // Live Health Card
         Card(
@@ -1315,14 +1410,53 @@ fun CompanionDashboardScreen(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Calls and recordings auto-sync for $userName ($orgName).",
+                    text = "Calls & recordings auto-sync for $userName ($orgName).",
                     fontSize = 13.sp,
                     color = TextMuted
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Server IP & Wi-Fi row
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("CONNECTED SERVER", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle)
+                    Text(
+                        text = serverUrl.replace("http://", "").replace("https://", ""),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextDark
+                    )
+                }
+                OutlinedButton(
+                    onClick = {
+                        tempServerUrl = serverUrl
+                        showServerDialog = true
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("Change IP", fontSize = 11.sp, color = BrandBlue, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Diagnostic Grid
         Row(
@@ -1337,7 +1471,7 @@ fun CompanionDashboardScreen(
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text("WORK SIM", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSubtle)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(workSimName, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+                    Text(workSimName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
                 }
             }
             Card(
@@ -1348,36 +1482,69 @@ fun CompanionDashboardScreen(
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text("RECORDINGS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSubtle)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("🟢 Working", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = BrandGreen)
+                    Text(
+                        text = if (isStorageAccessGranted) "🟢 Ready" else "🟡 Need Perm",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isStorageAccessGranted) BrandGreen else Color(0xFFD97706)
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Action Buttons Row
+        // PRIMARY ACTION BUTTON: Scan & Sync Call Recordings
+        Button(
+            onClick = onSyncRecordings,
+            enabled = !isSyncingRecordings,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+        ) {
+            if (isSyncingRecordings) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (syncProgressStatus.isNotBlank()) syncProgressStatus else "Scanning Recordings...",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp
+                )
+            } else {
+                Text("🎙️ Scan & Sync Call Recordings", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Secondary Action Buttons Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Button(
+            OutlinedButton(
                 onClick = onSyncNow,
-                modifier = Modifier.weight(1f).height(44.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Text("Sync Now", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Sync Call Logs", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = TextDark)
             }
             OutlinedButton(
                 onClick = onReviewPermissions,
-                modifier = Modifier.weight(1f).height(44.dp),
+                modifier = Modifier.weight(1f).height(40.dp),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Text("Permissions", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = TextDark)
+                Text("Permissions", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = TextDark)
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Call Timeline Header
         Row(
@@ -1385,8 +1552,8 @@ fun CompanionDashboardScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Recent Calls Timeline", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
-            Text("${recentCalls.size} logged", fontSize = 12.sp, color = TextSubtle)
+            Text("Recent Calls Timeline", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+            Text("${recentCalls.size} calls", fontSize = 12.sp, color = TextSubtle)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -1404,7 +1571,7 @@ fun CompanionDashboardScreen(
                     Text("📞", fontSize = 32.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("No calls logged yet", fontWeight = FontWeight.Medium, color = TextSubtle)
-                    Text("Calls made or received will appear here automatically", fontSize = 12.sp, color = TextSubtle)
+                    Text("Calls will appear here automatically", fontSize = 12.sp, color = TextSubtle)
                 }
             }
         } else {
@@ -1438,8 +1605,20 @@ fun CompanionDashboardScreen(
                                     color = TextSubtle
                                 )
                             }
-                            if (call.isSynced) {
-                                Text("✓ Synced", color = BrandGreen, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            Column(horizontalAlignment = Alignment.End) {
+                                if (call.audioFilePath != null) {
+                                    Text(
+                                        text = if (call.isAudioUploaded) "🎙️ Rec" else "⏳ Audio Pending",
+                                        color = if (call.isAudioUploaded) BrandGreen else Color(0xFFD97706),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                } else {
+                                    Text("No rec.", color = TextSubtle, fontSize = 11.sp)
+                                }
+                                if (call.isSynced) {
+                                    Text("✓ Synced", color = BrandGreen, fontSize = 10.sp)
+                                }
                             }
                         }
                     }
@@ -1447,13 +1626,15 @@ fun CompanionDashboardScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         TextButton(
             onClick = onSignOut,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
-            Text("Switch Account / Sign out", color = TextSubtle, fontSize = 13.sp)
+            Text("Switch Account / Sign out", color = TextSubtle, fontSize = 12.sp)
         }
     }
 }
+
+

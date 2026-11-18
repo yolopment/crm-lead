@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
@@ -28,6 +29,7 @@ import com.crmlead.companion.importer.CallLogImporter
 import com.crmlead.companion.service.CallRecordingService
 import com.crmlead.companion.sim.SimInfo
 import com.crmlead.companion.sim.SimManagerHelper
+import com.crmlead.companion.sync.RecordingSyncManager
 import com.crmlead.companion.sync.SyncWorker
 import com.crmlead.companion.ui.screens.*
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +67,7 @@ class MainActivity : ComponentActivity() {
         const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         const val KEY_WORK_SIM_SLOT = "work_sim_slot"
         const val KEY_WORK_SIM_NAME = "work_sim_name"
+        const val DEFAULT_SERVER_URL = "http://192.168.1.27:5001"
     }
 
     // Permission Launchers
@@ -89,21 +92,40 @@ class MainActivity : ComponentActivity() {
 
     private val phoneStatePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
+    ) {
         refreshSimList()
+    }
+
+    private val storagePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        isStorageAccessGranted = checkStorageAccess()
     }
 
     private var currentStep by mutableStateOf(SetupStep.SIGN_IN)
     private var isSigningIn by mutableStateOf(false)
     private var isImporting by mutableStateOf(false)
     private var importStatusText by mutableStateOf("")
+    private var isSyncingRecordings by mutableStateOf(false)
+    private var syncProgressStatus by mutableStateOf("")
+    private var isStorageAccessGranted by mutableStateOf(false)
     private var detectedSims by mutableStateOf<List<SimInfo>>(emptyList())
     private var selectedSimSlot by mutableStateOf(-1)
+    private var serverUrlState by mutableStateOf(DEFAULT_SERVER_URL)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+
+        // Automatic Wi-Fi IP Migration: if user previously had 192.168.1.40, migrate to current 192.168.1.27
+        var currentSavedUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
+        if (currentSavedUrl.contains("192.168.1.40")) {
+            currentSavedUrl = currentSavedUrl.replace("192.168.1.40", "192.168.1.27")
+            prefs.edit().putString(SyncWorker.KEY_SERVER_URL, currentSavedUrl).apply()
+        }
+        serverUrlState = currentSavedUrl
+
         val isOnboardingCompleted = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
         val isPaired = prefs.getBoolean(KEY_IS_PAIRED, false)
         selectedSimSlot = prefs.getInt(KEY_WORK_SIM_SLOT, -1)
@@ -117,6 +139,7 @@ class MainActivity : ComponentActivity() {
         }
 
         refreshSimList()
+        isStorageAccessGranted = checkStorageAccess()
 
         // Start background call recording service if paired
         if (isPaired) {
@@ -134,7 +157,6 @@ class MainActivity : ComponentActivity() {
                     val callsList by db.callDao().getAllCallsFlow().collectAsState(initial = emptyList())
                     val userName = prefs.getString(KEY_PAIRED_USER, "AFTAB SEKH") ?: "AFTAB SEKH"
                     val orgName = prefs.getString(KEY_PAIRED_ORG, "YOLOPMENT") ?: "YOLOPMENT"
-                    val serverUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, "http://192.168.1.40:5001") ?: "http://192.168.1.40:5001"
                     val workSimName = prefs.getString(KEY_WORK_SIM_NAME, "All SIMs") ?: "All SIMs"
 
                     AnimatedContent(
@@ -147,13 +169,15 @@ class MainActivity : ComponentActivity() {
                         when (step) {
                             SetupStep.SIGN_IN -> {
                                 SignInScreen(
-                                    initialServerUrl = serverUrl,
+                                    initialServerUrl = serverUrlState,
                                     initialToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: "",
                                     isLoading = isSigningIn,
                                     onSignIn = { email, pass, url ->
+                                        serverUrlState = url
                                         loginWithCredentials(email, pass, url)
                                     },
                                     onPairWithToken = { url, token ->
+                                        serverUrlState = url
                                         pairWithToken(url, token)
                                     }
                                 )
@@ -243,11 +267,23 @@ class MainActivity : ComponentActivity() {
                                 CompanionDashboardScreen(
                                     userName = userName,
                                     orgName = orgName,
-                                    serverUrl = serverUrl,
+                                    serverUrl = serverUrlState,
                                     workSimName = workSimName,
                                     recentCalls = callsList,
+                                    isStorageAccessGranted = isStorageAccessGranted,
+                                    isSyncingRecordings = isSyncingRecordings,
+                                    syncProgressStatus = syncProgressStatus,
                                     onSyncNow = {
                                         triggerManualSync()
+                                    },
+                                    onSyncRecordings = {
+                                        syncRecordingsWithBackend()
+                                    },
+                                    onRequestStorageAccess = {
+                                        requestStorageAccess()
+                                    },
+                                    onUpdateServerUrl = { newUrl ->
+                                        updateServerUrl(newUrl)
                                     },
                                     onReviewPermissions = {
                                         currentStep = SetupStep.SETUP_COMPLETE
@@ -261,6 +297,39 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isStorageAccessGranted = checkStorageAccess()
+    }
+
+    private fun checkStorageAccess(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun requestStorageAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            } catch (e: Exception) {
+                val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                startActivity(intent)
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            storagePermissionLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO))
+        } else {
+            storagePermissionLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
         }
     }
 
@@ -290,6 +359,41 @@ class MainActivity : ComponentActivity() {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             currentStep = SetupStep.STEP_WORK_SIM
+        }
+    }
+
+    private fun updateServerUrl(newUrl: String) {
+        val clean = newUrl.trimEnd('/')
+        serverUrlState = clean
+        val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(SyncWorker.KEY_SERVER_URL, clean).apply()
+        Toast.makeText(this, "✅ Server updated to $clean", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun syncRecordingsWithBackend() {
+        if (!isStorageAccessGranted) {
+            requestStorageAccess()
+            return
+        }
+
+        isSyncingRecordings = true
+        syncProgressStatus = "Scanning phone for call recordings..."
+
+        lifecycleScope.launch {
+            val result = RecordingSyncManager.scanAndSyncAllRecordings(this@MainActivity) { status ->
+                syncProgressStatus = status
+            }
+            isSyncingRecordings = false
+
+            result.onSuccess { (matched, uploaded) ->
+                Toast.makeText(
+                    this@MainActivity,
+                    "🎉 Matched $matched recordings · $uploaded uploaded to CRM!",
+                    Toast.LENGTH_LONG
+                ).show()
+            }.onFailure { err ->
+                Toast.makeText(this@MainActivity, "Notice: ${err.message}", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -343,7 +447,7 @@ class MainActivity : ComponentActivity() {
                     .apply()
 
                 // Register device with backend
-                pairDeviceHardware(cleanUrl, deviceToken, userName, orgName)
+                pairDeviceHardware(cleanUrl, deviceToken)
 
                 withContext(Dispatchers.Main) {
                     isSigningIn = false
@@ -428,7 +532,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun pairDeviceHardware(cleanUrl: String, deviceToken: String, userName: String, orgName: String) {
+    private fun pairDeviceHardware(cleanUrl: String, deviceToken: String) {
         try {
             val hardwareId = "hw-android-${Build.MANUFACTURER.lowercase()}-${Build.MODEL.lowercase()}"
             val payload = JSONObject().apply {
@@ -454,7 +558,7 @@ class MainActivity : ComponentActivity() {
 
     private fun importCallHistory(days: Int) {
         isImporting = true
-        importStatusText = "Importing call history from last $days days..."
+        importStatusText = "Importing calls & matching recordings (last $days days)..."
 
         lifecycleScope.launch {
             val result = CallLogImporter.importRecentCalls(this@MainActivity, days, selectedSimSlot)
@@ -475,11 +579,16 @@ class MainActivity : ComponentActivity() {
         prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, true).apply()
         CallRecordingService.start(this)
         currentStep = SetupStep.DASHBOARD
+
+        // Also trigger background recording match
+        lifecycleScope.launch {
+            RecordingSyncManager.scanAndSyncAllRecordings(this@MainActivity)
+        }
     }
 
     private fun triggerManualSync() {
         lifecycleScope.launch {
-            Toast.makeText(this@MainActivity, "Syncing calls with CRM...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@MainActivity, "Syncing call logs with CRM...", Toast.LENGTH_SHORT).show()
             val result = CallLogImporter.importRecentCalls(this@MainActivity, 3, selectedSimSlot)
             result.onSuccess { count ->
                 Toast.makeText(this@MainActivity, "Synced! $count calls updated.", Toast.LENGTH_SHORT).show()

@@ -171,6 +171,128 @@ export class CallController {
   }
 
   /**
+   * Upload and attach audio recording by matching phone number and call timestamp
+   */
+  static async uploadByMatch(req: Request, res: Response): Promise<void> {
+    try {
+      const orgId = req.user!.orgId;
+      const { phoneNumber, startedAt, durationSec, callId } = req.body;
+
+      if (!req.file) {
+        res.status(400).json({ error: 'No audio file provided in request body.' });
+        return;
+      }
+
+      const relativePath = path.join(orgId, req.file.filename);
+
+      // Clean phone number (strip spaces, symbols)
+      const cleanPhone = (phoneNumber || '').replace(/[\s\-\(\)]/g, '');
+      const callTime = startedAt ? new Date(startedAt) : null;
+
+      let call = null;
+
+      // 1. Direct ID match if supplied
+      if (callId) {
+        call = await prisma.call.findFirst({
+          where: { id: callId, orgId },
+        });
+      }
+
+      // 2. Match by phone and timestamp window (+- 3 minutes)
+      if (!call && cleanPhone && callTime && !isNaN(callTime.getTime())) {
+        call = await prisma.call.findFirst({
+          where: {
+            orgId,
+            phoneNumber: { contains: cleanPhone.slice(-7) },
+            startedAt: {
+              gte: new Date(callTime.getTime() - 180000),
+              lte: new Date(callTime.getTime() + 180000),
+            },
+          },
+          orderBy: { startedAt: 'desc' },
+        });
+      }
+
+      // 3. Fallback: match most recent call with this phone number
+      if (!call && cleanPhone) {
+        call = await prisma.call.findFirst({
+          where: {
+            orgId,
+            phoneNumber: { contains: cleanPhone.slice(-7) },
+          },
+          orderBy: { startedAt: 'desc' },
+        });
+      }
+
+      if (call) {
+        const updatedCall = await prisma.call.update({
+          where: { id: call.id },
+          data: {
+            audioPath: relativePath,
+            audioSize: req.file.size,
+          },
+        });
+
+        console.log(`🎙️ Recording matched and attached to call ${call.id} (${call.phoneNumber})`);
+
+        res.status(200).json({
+          success: true,
+          message: 'Audio recording matched and attached to call.',
+          callId: updatedCall.id,
+          audioSize: updatedCall.audioSize,
+          audioPath: updatedCall.audioPath,
+        });
+        return;
+      }
+
+      // 4. If no call exists yet, create the call and attach audio!
+      let lead = await prisma.lead.findFirst({
+        where: { orgId, phone: { contains: cleanPhone.slice(-7) } },
+      });
+
+      if (!lead && cleanPhone) {
+        lead = await prisma.lead.create({
+          data: {
+            orgId,
+            phone: cleanPhone,
+            fullName: `Lead (${cleanPhone.slice(-4)})`,
+            source: 'inbound_call',
+            assignedToId: req.user!.id,
+          },
+        });
+      }
+
+      const newCall = await prisma.call.create({
+        data: {
+          orgId,
+          userId: req.user!.id,
+          leadId: lead ? lead.id : undefined,
+          phoneNumber: cleanPhone || 'Unknown',
+          direction: CallDirection.INBOUND,
+          status: CallStatus.CONNECTED,
+          durationSec: parseInt(durationSec, 10) || 0,
+          startedAt: callTime || new Date(),
+          audioPath: relativePath,
+          audioSize: req.file.size,
+        },
+      });
+
+      console.log(`🎙️ Recording created new call ${newCall.id} with audio attached!`);
+
+      res.status(200).json({
+        success: true,
+        message: 'New call created and recording attached.',
+        callId: newCall.id,
+        audioSize: newCall.audioSize,
+        audioPath: newCall.audioPath,
+      });
+    } catch (error: any) {
+      console.error('Error in uploadByMatch:', error);
+      res.status(500).json({ error: error.message || 'Failed to attach recording.' });
+    }
+  }
+
+  /**
    * Stream call audio with range seeking support for web dashboard
    */
   static async streamAudio(req: Request, res: Response): Promise<void> {

@@ -105,6 +105,21 @@ object CallLogImporter {
                     else -> "MISSED"
                 }
 
+                // Check for matching audio recording on device
+                val matchedRecording = try {
+                    com.crmlead.companion.detector.CallAudioDetector.findRecordingForCall(
+                        context,
+                        phone,
+                        callDate,
+                        callDate + duration * 1000L,
+                        duration
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+
+                val hasAudio = matchedRecording != null && matchedRecording.exists()
+
                 val callObj = JSONObject().apply {
                     put("phoneNumber", phone)
                     put("direction", direction)
@@ -112,7 +127,7 @@ object CallLogImporter {
                     put("durationSec", duration)
                     put("startedAt", isoFormat.format(Date(callDate)))
                     put("endedAt", isoFormat.format(Date(callDate + duration * 1000L)))
-                    put("hasAudio", false)
+                    put("hasAudio", hasAudio)
                 }
                 jsonCallsArray.put(callObj)
 
@@ -124,7 +139,7 @@ object CallLogImporter {
                         durationSec = duration,
                         startedAt = callDate,
                         endedAt = callDate + duration * 1000L,
-                        audioFilePath = null,
+                        audioFilePath = matchedRecording?.absolutePath,
                         isSynced = true
                     )
                 )
@@ -167,6 +182,13 @@ object CallLogImporter {
                 val response = httpClient.newCall(request).execute()
                 if (!response.isSuccessful) {
                     Log.w(TAG, "Server sync returned status ${response.code}")
+                } else {
+                    // Trigger recording upload for any matched audio files
+                    try {
+                        com.crmlead.companion.sync.RecordingSyncManager.scanAndSyncAllRecordings(context)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Background recording sync error", e)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to upload imported calls to CRM server", e)
@@ -176,3 +198,4 @@ object CallLogImporter {
         Result.success(callsToSync.size)
     }
 }
+
