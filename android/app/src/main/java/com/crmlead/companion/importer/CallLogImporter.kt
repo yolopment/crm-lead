@@ -84,12 +84,19 @@ object CallLogImporter {
 
         try {
             val numIdx = cursor.getColumnIndex(CallLog.Calls.NUMBER)
+            val nameIdx = cursor.getColumnIndex(CallLog.Calls.CACHED_NAME)
             val dateIdx = cursor.getColumnIndex(CallLog.Calls.DATE)
             val durIdx = cursor.getColumnIndex(CallLog.Calls.DURATION)
             val typeIdx = cursor.getColumnIndex(CallLog.Calls.TYPE)
 
             while (cursor.moveToNext()) {
                 val phone = cursor.getString(numIdx) ?: continue
+                val cachedName = if (nameIdx >= 0) cursor.getString(nameIdx) else null
+                val contactName = if (!cachedName.isNullOrBlank()) {
+                    cachedName.trim()
+                } else {
+                    com.crmlead.companion.contact.ContactHelper.resolveContactName(context, phone)
+                }
                 val callDate = cursor.getLong(dateIdx)
                 val duration = cursor.getInt(durIdx)
                 val type = cursor.getInt(typeIdx)
@@ -122,6 +129,9 @@ object CallLogImporter {
 
                 val callObj = JSONObject().apply {
                     put("phoneNumber", phone)
+                    if (!contactName.isNullOrBlank()) {
+                        put("contactName", contactName)
+                    }
                     put("direction", direction)
                     put("status", status)
                     put("durationSec", duration)
@@ -134,6 +144,7 @@ object CallLogImporter {
                 callsToSync.add(
                     CallEntity(
                         phoneNumber = phone,
+                        contactName = contactName,
                         direction = direction,
                         status = status,
                         durationSec = duration,

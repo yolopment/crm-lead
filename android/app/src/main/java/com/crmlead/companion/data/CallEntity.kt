@@ -8,6 +8,7 @@ data class CallEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val phoneNumber: String,
+    val contactName: String? = null,
     val direction: String, // "INBOUND" or "OUTBOUND"
     val status: String,    // "CONNECTED", "MISSED", "BUSY"
     val durationSec: Int,
@@ -18,4 +19,3 @@ data class CallEntity(
     val isAudioUploaded: Boolean = false,
     val serverCallId: String? = null
 )
-

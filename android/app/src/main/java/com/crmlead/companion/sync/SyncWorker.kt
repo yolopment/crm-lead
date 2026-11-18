@@ -57,6 +57,9 @@ class SyncWorker(
             for (call in unsyncedCalls) {
                 val callJson = JSONObject().apply {
                     put("phoneNumber", call.phoneNumber)
+                    if (!call.contactName.isNullOrBlank()) {
+                        put("contactName", call.contactName)
+                    }
                     put("direction", call.direction)
                     put("status", call.status)
                     put("durationSec", call.durationSec)

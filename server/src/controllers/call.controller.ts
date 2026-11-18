@@ -24,6 +24,7 @@ export class CallController {
       for (const item of calls) {
         const {
           phoneNumber,
+          contactName,
           direction,
           status,
           durationSec = 0,
@@ -38,6 +39,7 @@ export class CallController {
         // Clean phone number (strip whitespace, dashes)
         const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
         const callStartTime = startedAt ? new Date(startedAt) : new Date();
+        const trimmedContactName = contactName?.trim();
 
         // Check if this exact call was already logged to prevent duplicates
         const existingCall = await prisma.call.findFirst({
@@ -53,6 +55,18 @@ export class CallController {
         });
 
         if (existingCall) {
+          // If we now have a contact name from the phonebook, upgrade the associated lead name!
+          if (trimmedContactName) {
+            const existingLead = await prisma.lead.findFirst({
+              where: { orgId, phone: cleanPhone },
+            });
+            if (existingLead && (!existingLead.fullName || existingLead.fullName.startsWith('Lead (') || existingLead.fullName === cleanPhone)) {
+              await prisma.lead.update({
+                where: { id: existingLead.id },
+                data: { fullName: trimmedContactName },
+              });
+            }
+          }
           syncedRecords.push({ id: existingCall.id, status: 'already_synced' });
           continue;
         }
@@ -70,11 +84,17 @@ export class CallController {
             data: {
               orgId,
               phone: cleanPhone,
-              fullName: `Lead (${cleanPhone.slice(-4)})`,
+              fullName: trimmedContactName || (cleanPhone.length >= 4 ? `Lead (${cleanPhone.slice(-4)})` : cleanPhone),
               source: direction === 'INBOUND' ? 'inbound_call' : 'outbound_call',
               assignedToId: userId,
               stage: durationSec > 0 ? LeadStage.CONTACTED : LeadStage.NEW,
             },
+          });
+        } else if (trimmedContactName && (!lead.fullName || lead.fullName.startsWith('Lead (') || lead.fullName === cleanPhone)) {
+          // Upgrade generic placeholder lead name to the phonebook contact name
+          lead = await prisma.lead.update({
+            where: { id: lead.id },
+            data: { fullName: trimmedContactName },
           });
         }
 
@@ -176,7 +196,8 @@ export class CallController {
   static async uploadByMatch(req: Request, res: Response): Promise<void> {
     try {
       const orgId = req.user!.orgId;
-      const { phoneNumber, startedAt, durationSec, callId } = req.body;
+      const { phoneNumber, startedAt, durationSec, callId, contactName } = req.body;
+      const trimmedContactName = contactName?.trim();
 
       if (!req.file) {
         res.status(400).json({ error: 'No audio file provided in request body.' });
@@ -233,6 +254,16 @@ export class CallController {
           },
         });
 
+        if (trimmedContactName && call.leadId) {
+          const existingLead = await prisma.lead.findUnique({ where: { id: call.leadId } });
+          if (existingLead && (!existingLead.fullName || existingLead.fullName.startsWith('Lead (') || existingLead.fullName === cleanPhone)) {
+            await prisma.lead.update({
+              where: { id: existingLead.id },
+              data: { fullName: trimmedContactName },
+            });
+          }
+        }
+
         console.log(`🎙️ Recording matched and attached to call ${call.id} (${call.phoneNumber})`);
 
         res.status(200).json({
@@ -255,10 +286,15 @@ export class CallController {
           data: {
             orgId,
             phone: cleanPhone,
-            fullName: `Lead (${cleanPhone.slice(-4)})`,
+            fullName: trimmedContactName || (cleanPhone.length >= 4 ? `Lead (${cleanPhone.slice(-4)})` : cleanPhone),
             source: 'inbound_call',
             assignedToId: req.user!.id,
           },
+        });
+      } else if (lead && trimmedContactName && (!lead.fullName || lead.fullName.startsWith('Lead (') || lead.fullName === cleanPhone)) {
+        lead = await prisma.lead.update({
+          where: { id: lead.id },
+          data: { fullName: trimmedContactName },
         });
       }
 

@@ -6,7 +6,7 @@ import {
   Phone, PhoneOff, Plus, RefreshCw, X, CheckCircle2, Circle, Clock,
   Smartphone, Shield, Settings, SlidersHorizontal, ArrowRight, UserPlus,
   Trash2, Mail, Check, AlertTriangle, AlertCircle, HeartHandshake, Mic, MicOff,
-  Inbox, Upload
+  Inbox, Upload, Edit2
 } from 'lucide-react';
 import Link from 'next/link';
 import AudioPlayer from '@/components/AudioPlayer';
@@ -125,6 +125,9 @@ export default function CallsDashboard() {
   const [showAddDntModal, setShowAddDntModal] = useState(false);
   const [dntPhone, setDntPhone] = useState('');
   const [dntReason, setDntReason] = useState('');
+  const [renameModal, setRenameModal] = useState<{ leadId: string; currentName: string } | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameLoading, setRenameLoading] = useState(false);
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -236,6 +239,24 @@ export default function CallsDashboard() {
       loadData(true);
     } catch (err: any) {
       setToast({ message: err.message || 'Failed to resend invite', type: 'error' });
+    }
+  };
+
+  const handleSaveLeadName = async () => {
+    if (!renameModal || !renameValue.trim()) return;
+    setRenameLoading(true);
+    try {
+      await fetchWithAuth(`/leads/${renameModal.leadId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fullName: renameValue.trim() }),
+      });
+      setCalls(prev => prev.map(c => c.lead?.id === renameModal.leadId ? { ...c, lead: { ...c.lead, fullName: renameValue.trim() } } : c));
+      setToast({ message: 'Contact name updated successfully', type: 'success' });
+      setRenameModal(null);
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to update contact name', type: 'error' });
+    } finally {
+      setRenameLoading(false);
     }
   };
 
@@ -642,6 +663,18 @@ export default function CallsDashboard() {
                         <span className="font-bold text-slate-900 text-xs">
                           {call.lead?.fullName || call.phoneNumber}
                         </span>
+                        {call.lead && (
+                          <button
+                            onClick={() => {
+                              setRenameModal({ leadId: call.lead!.id, currentName: call.lead!.fullName || '' });
+                              setRenameValue(call.lead!.fullName || '');
+                            }}
+                            className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition"
+                            title="Rename Contact / Lead"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                        )}
                         {call.lead?.fullName && (
                           <span className="text-[11px] text-slate-400">{call.phoneNumber}</span>
                         )}
@@ -1359,6 +1392,59 @@ export default function CallsDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Rename Contact / Lead Modal */}
+      {renameModal && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setRenameModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-900">Rename Contact</h3>
+              <button onClick={() => setRenameModal(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Update the name for this lead across all calls and reports.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Contact / Lead Name</label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. Rahul Sharma"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveLeadName()}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRenameModal(null)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveLeadName}
+                  disabled={renameLoading || !renameValue.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {renameLoading ? 'Saving...' : 'Save Name'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

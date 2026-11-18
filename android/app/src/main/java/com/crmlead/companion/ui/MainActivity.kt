@@ -381,6 +381,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         isStorageAccessGranted = checkStorageAccess()
+        lifecycleScope.launch {
+            com.crmlead.companion.contact.ContactHelper.syncContactNamesWithLocalDb(this@MainActivity)
+        }
     }
 
     private fun checkStorageAccess(): Boolean {

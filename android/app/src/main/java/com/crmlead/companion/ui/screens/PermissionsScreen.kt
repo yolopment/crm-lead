@@ -273,3 +273,4 @@ private fun openAppSettings(context: Context) {
         Toast.makeText(context, "Cannot open settings", Toast.LENGTH_SHORT).show()
     }
 }
+

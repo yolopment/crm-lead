@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, Users, Download, ChevronDown, Phone, Mail, Tag, X, Loader2 } from 'lucide-react';
+import { Search, Plus, Users, Download, ChevronDown, Phone, Mail, Tag, X, Loader2, Edit2 } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/api';
 import { Toast, Badge, TableRowSkeleton } from '@/components/ui';
 
@@ -42,6 +42,9 @@ export default function LeadsPage() {
   const [createForm, setCreateForm] = useState({ fullName: '', phone: '', email: '', source: 'manual', tags: '' });
   const [createLoading, setCreateLoading] = useState(false);
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
+  const [editLead, setEditLead] = useState<Lead | null>(null);
+  const [editForm, setEditForm] = useState({ fullName: '', phone: '', email: '', tags: '' });
+  const [editLoading, setEditLoading] = useState(false);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -79,6 +82,25 @@ export default function LeadsPage() {
       setToast({ message: err.message, type: 'error' });
     } finally {
       setUpdatingLeadId(null);
+    }
+  };
+
+  const handleSaveLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editLead) return;
+    setEditLoading(true);
+    try {
+      const updated = await fetchWithAuth(`/leads/${editLead.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(editForm),
+      });
+      setLeads(prev => prev.map(l => l.id === editLead.id ? { ...l, ...updated } : l));
+      setToast({ message: 'Lead updated successfully!', type: 'success' });
+      setEditLead(null);
+    } catch (err: any) {
+      setToast({ message: err.message, type: 'error' });
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -206,7 +228,24 @@ export default function LeadsPage() {
                 ) : leads.map(lead => (
                   <tr key={lead.id} className="hover:bg-slate-50/50 transition">
                     <td className="py-4 px-6">
-                      <div className="font-semibold text-slate-900">{lead.fullName || 'Unknown'}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-slate-900">{lead.fullName || 'Unknown'}</div>
+                        <button
+                          onClick={() => {
+                            setEditLead(lead);
+                            setEditForm({
+                              fullName: lead.fullName || '',
+                              phone: lead.phone,
+                              email: lead.email || '',
+                              tags: lead.tags || '',
+                            });
+                          }}
+                          className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition"
+                          title="Edit Lead Details"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                       <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
                         <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{lead.phone}</span>
                         {lead.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{lead.email}</span>}
@@ -319,6 +358,88 @@ export default function LeadsPage() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5">
                   {createLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {createLoading ? 'Creating...' : 'Create Lead'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Lead Modal */}
+      {editLead && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditLead(null)}>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-bold text-slate-900">Edit Lead</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Update saved name, phone or contact details</p>
+              </div>
+              <button onClick={() => setEditLead(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLead} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editForm.fullName}
+                  onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
+                  placeholder="e.g. Rahul Sharma"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                  placeholder="+919XXXXXXXXX"
+                  required
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                  placeholder="rahul@example.com"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Tags</label>
+                <input
+                  type="text"
+                  value={editForm.tags}
+                  onChange={e => setEditForm({ ...editForm, tags: e.target.value })}
+                  placeholder="hot, interested, VIP"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditLead(null)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5"
+                >
+                  {editLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {editLoading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

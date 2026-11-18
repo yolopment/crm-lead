@@ -9,6 +9,7 @@ router.use(authenticate);
 router.get('/', LeadController.listLeads);
 router.post('/', LeadController.createLead);
 router.patch('/:leadId/stage', LeadController.updateStage);
+router.patch('/:leadId', LeadController.updateLead);
 
 export default router;
 

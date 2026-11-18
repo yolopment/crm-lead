@@ -125,5 +125,34 @@ export class LeadController {
       res.status(500).json({ error: error.message || 'Failed to update lead stage.' });
     }
   }
+
+  static async updateLead(req: Request, res: Response): Promise<void> {
+    try {
+      const { leadId } = req.params;
+      const { fullName, phone, email, tags, stage, assignedToId } = req.body;
+      const orgId = req.user!.orgId;
+
+      const dataToUpdate: any = {};
+      if (fullName !== undefined) dataToUpdate.fullName = fullName;
+      if (phone !== undefined) dataToUpdate.phone = phone.replace(/[\s\-\(\)]/g, '');
+      if (email !== undefined) dataToUpdate.email = email;
+      if (tags !== undefined) dataToUpdate.tags = tags;
+      if (stage !== undefined && Object.values(LeadStage).includes(stage)) dataToUpdate.stage = stage;
+      if (assignedToId !== undefined) dataToUpdate.assignedToId = assignedToId;
+
+      const updated = await prisma.lead.update({
+        where: { id: leadId },
+        data: dataToUpdate,
+        include: {
+          assignedTo: { select: { id: true, name: true, email: true } },
+          _count: { select: { calls: true, notes: true } },
+        },
+      });
+
+      res.status(200).json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to update lead.' });
+    }
+  }
 }
 

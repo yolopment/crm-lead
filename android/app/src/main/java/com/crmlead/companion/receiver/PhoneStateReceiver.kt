@@ -82,9 +82,11 @@ class PhoneStateReceiver : BroadcastReceiver() {
                 CoroutineScope(Dispatchers.IO).launch {
                     delay(2500)
                     val recordingFile = CallAudioDetector.findRecordingForCall(context, phone, callStartTime, callEndTime, durationSec)
+                    val contactName = com.crmlead.companion.contact.ContactHelper.resolveContactName(context, phone)
 
                     val callEntity = CallEntity(
                         phoneNumber = phone,
+                        contactName = contactName,
                         direction = direction,
                         status = status,
                         durationSec = durationSec,

@@ -53,10 +53,13 @@ fun CallsScreen(
         }
     }
 
-    // Filter calls based on search
+    // Filter calls based on search (by phone or contact name)
     val filteredCalls = remember(callsList, searchQuery) {
         if (searchQuery.isBlank()) callsList
-        else callsList.filter { it.phoneNumber.contains(searchQuery.trim()) }
+        else callsList.filter {
+            it.phoneNumber.contains(searchQuery.trim(), ignoreCase = true) ||
+            (!it.contactName.isNullOrBlank() && it.contactName.contains(searchQuery.trim(), ignoreCase = true))
+        }
     }
 
     // Today's summary calculations
@@ -461,12 +464,21 @@ fun CallsScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
+                                    val displayName = if (!call.contactName.isNullOrBlank()) call.contactName else call.phoneNumber
                                     Text(
-                                        text = call.phoneNumber,
+                                        text = displayName,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,
                                         color = if (call.status == "MISSED") BrandRed else TextDark
                                     )
+                                    if (!call.contactName.isNullOrBlank()) {
+                                        Text(
+                                            text = call.phoneNumber,
+                                            fontSize = 11.sp,
+                                            color = TextSubtle,
+                                            fontWeight = FontWeight.Normal
+                                        )
+                                    }
                                     if (selectedTab == 1) {
                                         Text(
                                             text = "By $userName",
@@ -526,3 +538,4 @@ fun CallsScreen(
         }
     }
 }
+

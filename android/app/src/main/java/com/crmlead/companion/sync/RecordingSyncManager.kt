@@ -150,6 +150,10 @@ object RecordingSyncManager {
                 .addFormDataPart("phoneNumber", call.phoneNumber)
                 .addFormDataPart("startedAt", isoFormat.format(Date(call.startedAt)))
                 .addFormDataPart("durationSec", call.durationSec.toString())
+            
+            if (!call.contactName.isNullOrBlank()) {
+                multipartBody.addFormDataPart("contactName", call.contactName)
+            }
 
             if (!call.serverCallId.isNullOrEmpty()) {
                 multipartBody.addFormDataPart("callId", call.serverCallId)
