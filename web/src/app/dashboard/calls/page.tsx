@@ -93,7 +93,6 @@ const SUBTABS = [
 
 export default function CallsDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [showSetupBanner, setShowSetupBanner] = useState(true);
   const [stats, setStats] = useState<CallStats | null>(null);
   const [team, setTeam] = useState<Agent[]>([]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
@@ -327,52 +326,6 @@ export default function CallsDashboard() {
   return (
     <div className="max-w-7xl mx-auto space-y-5">
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
-
-      {/* Setup Progress Banner (LeadZam style) */}
-      {showSetupBanner && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm relative">
-          <button
-            onClick={() => setShowSetupBanner(false)}
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition"
-            title="Dismiss"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-bold text-slate-900">Finish setting up your workspace</h2>
-            <span className="text-xs text-slate-500 mr-8 font-medium">1 of 2 done</span>
-          </div>
-          <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden mb-4">
-            <div className="bg-blue-600 h-full rounded-full" style={{ width: '50%' }} />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between py-1.5 text-xs">
-              <div className="flex items-center gap-2.5 text-slate-700">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500 fill-emerald-50" />
-                <span className="font-medium">Install LeadZam Calls on your phone</span>
-              </div>
-              <a
-                href="/downloads/crm-companion.apk"
-                download="crm-companion.apk"
-                className="text-blue-600 font-semibold hover:underline flex items-center gap-1"
-              >
-                <span>Open the download page</span>
-                <ArrowRight className="w-3 h-3" />
-              </a>
-            </div>
-            <div className="flex items-center justify-between py-1.5 text-xs">
-              <div className="flex items-center gap-2.5 text-slate-500">
-                <Circle className="w-4 h-4 text-slate-300" />
-                <span>See the whole Calls section once</span>
-              </div>
-              <button onClick={() => setShowSetupBanner(false)} className="text-blue-600 font-semibold hover:underline flex items-center gap-1">
-                <span>Open Calls</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Header with Title & Action Badges */}
       <div>
