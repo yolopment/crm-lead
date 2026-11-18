@@ -140,6 +140,13 @@ model Device {
   androidVersion   String?
   appVersion       String?
   batteryLevel     Int?
+  isCharging       Boolean?     @default(false)
+  networkType      String?      // Wi-Fi, 5G Mobile Data, 4G LTE
+  ipAddress        String?
+  storageAccess    Boolean?     @default(true)
+  callLogAccess    Boolean?     @default(true)
+  batteryOptimized Boolean?     @default(false)
+  recordingFolder  String?      @default("Recordings/Call")
   state            String       @default("HEALTHY") // HEALTHY, DEGRADED, BROKEN, INACTIVE
   recordingsWorking Boolean     @default(true)
   lastSyncAt       DateTime?

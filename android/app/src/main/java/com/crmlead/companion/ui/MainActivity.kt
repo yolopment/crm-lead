@@ -33,6 +33,7 @@ import com.crmlead.companion.sim.SimInfo
 import com.crmlead.companion.sim.SimManagerHelper
 import com.crmlead.companion.sync.RecordingSyncManager
 import com.crmlead.companion.sync.SyncWorker
+import com.crmlead.companion.telemetry.DeviceTelemetryHelper
 import com.crmlead.companion.ui.navigation.AppNavScreen
 import com.crmlead.companion.ui.navigation.LeadZamDrawerContent
 import com.crmlead.companion.ui.screens.*
@@ -148,9 +149,15 @@ class MainActivity : ComponentActivity() {
         refreshSimList()
         isStorageAccessGranted = checkStorageAccess()
 
-        // Start background call recording service if paired
+        // Start background call recording service & report telemetry if paired
         if (isPaired) {
             CallRecordingService.start(this)
+            val devToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
+            if (devToken.isNotEmpty()) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    pairDeviceHardware(currentSavedUrl, devToken)
+                }
+            }
         }
 
         val db = AppDatabase.getDatabase(this)
@@ -550,15 +557,7 @@ class MainActivity : ComponentActivity() {
                 val cleanUrl = serverUrl.trimEnd('/')
                 val cleanToken = token.trim()
 
-                val hardwareId = "hw-android-${Build.MANUFACTURER.lowercase()}-${Build.MODEL.lowercase()}"
-                val payload = JSONObject().apply {
-                    put("deviceToken", cleanToken)
-                    put("deviceHardwareId", hardwareId)
-                    put("deviceName", "${Build.MANUFACTURER} · ${Build.MODEL}")
-                    put("androidVersion", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-                    put("appVersion", "v1.7.54")
-                    put("batteryLevel", 95)
-                }
+                val payload = DeviceTelemetryHelper.getTelemetryPayload(this@MainActivity, cleanToken)
 
                 val request = Request.Builder()
                     .url("$cleanUrl/api/v1/devices/pair")
@@ -613,15 +612,7 @@ class MainActivity : ComponentActivity() {
 
     private fun pairDeviceHardware(cleanUrl: String, deviceToken: String) {
         try {
-            val hardwareId = "hw-android-${Build.MANUFACTURER.lowercase()}-${Build.MODEL.lowercase()}"
-            val payload = JSONObject().apply {
-                put("deviceToken", deviceToken)
-                put("deviceHardwareId", hardwareId)
-                put("deviceName", "${Build.MANUFACTURER} · ${Build.MODEL}")
-                put("androidVersion", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-                put("appVersion", "v1.7.54")
-                put("batteryLevel", 90)
-            }
+            val payload = DeviceTelemetryHelper.getTelemetryPayload(this, deviceToken)
 
             val request = Request.Builder()
                 .url("$cleanUrl/api/v1/devices/pair")

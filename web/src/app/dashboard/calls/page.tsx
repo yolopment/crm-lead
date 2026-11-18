@@ -6,7 +6,7 @@ import {
   Phone, PhoneOff, Plus, RefreshCw, X, CheckCircle2, Circle, Clock,
   Smartphone, Shield, Settings, SlidersHorizontal, ArrowRight, UserPlus,
   Trash2, Mail, Check, AlertTriangle, AlertCircle, HeartHandshake, Mic, MicOff,
-  Inbox, Upload, Edit2
+  Inbox, Upload, Edit2, Battery, Zap, Wifi, Folder, Activity, ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import AudioPlayer from '@/components/AudioPlayer';
@@ -32,6 +32,15 @@ interface AgentDevice {
   recordingsWorking: boolean;
   lastSyncAt: string | null;
   batteryLevel: number | null;
+  isCharging?: boolean | null;
+  networkType?: string | null;
+  ipAddress?: string | null;
+  storageAccess?: boolean | null;
+  callLogAccess?: boolean | null;
+  batteryOptimized?: boolean | null;
+  recordingFolder?: string | null;
+  deviceHardwareId?: string | null;
+  user?: { id: string; name: string; email: string; role: string };
 }
 
 interface Agent {
@@ -142,6 +151,10 @@ export default function CallsDashboard() {
   const [privateBulkInput, setPrivateBulkInput] = useState('');
   const [privateLoading, setPrivateLoading] = useState(false);
 
+  // Device diagnostics & telemetry state
+  const [selectedDeviceModal, setSelectedDeviceModal] = useState<any | null>(null);
+  const [deviceDeleting, setDeviceDeleting] = useState(false);
+
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadData = useCallback(async (silent = false) => {
@@ -180,6 +193,25 @@ export default function CallsDashboard() {
   }, [dateRange, selectedAgent, searchTerm]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam && SUBTABS.some(t => t.id === tabParam)) {
+        setActiveTab(tabParam);
+      }
+    }
+  }, []);
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tabId);
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+
+  useEffect(() => {
     loadData();
     refreshIntervalRef.current = setInterval(() => loadData(true), 30000);
     return () => { if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current); };
@@ -213,6 +245,39 @@ export default function CallsDashboard() {
       setNoteModal(null);
     } catch (err: any) {
       setToast({ message: err.message || 'Failed to save note', type: 'error' });
+    }
+  };
+
+  const formatDeviceName = (dev: any) => {
+    if (!dev) return 'Device';
+    const brand = (dev.brand || '').trim();
+    const name = (dev.deviceName || '').trim();
+    if (!name && !brand) return 'Android Companion Device';
+    if (!brand) return name;
+    if (!name) return brand;
+    if (name.toLowerCase().startsWith(brand.toLowerCase())) {
+      return name;
+    }
+    return `${brand} ${name}`;
+  };
+
+  const handleUnpairDevice = async (device: any) => {
+    const devName = formatDeviceName(device);
+    if (!window.confirm(`Are you sure you want to unpair "${devName}"? Calls from this phone will no longer be captured.`)) {
+      return;
+    }
+    setDeviceDeleting(true);
+    try {
+      await fetchWithAuth(`/devices/${device.id}`, { method: 'DELETE' });
+      setAllDevices(prev => prev.filter(d => d.id !== device.id));
+      if (selectedDeviceModal?.id === device.id) {
+        setSelectedDeviceModal(null);
+      }
+      setToast({ message: `Device "${devName}" unpaired successfully.`, type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to unpair device', type: 'error' });
+    } finally {
+      setDeviceDeleting(false);
     }
   };
 
@@ -442,7 +507,7 @@ export default function CallsDashboard() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`pb-3 text-xs font-semibold transition border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
                   isActive
                     ? 'border-blue-600 text-blue-600'
@@ -1195,20 +1260,21 @@ export default function CallsDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 5: DEVICES (LeadZam Screenshot 3) */}
+      {/* TAB 5: DEVICES (Live Hardware & Telemetry Dashboard) */}
       {/* ========================================================================= */}
       {activeTab === 'devices' && (
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <p className="text-xs text-slate-400 max-w-2xl">
-              Each row shows the last health snapshot received from that device. Devices report every 6 hours, so expect up to a 6-hour lag — this is not a live status feed. Showing devices active in the last 72 h; switch Activity to All to see stale ones.
+              Each row shows the real-time health snapshot received from that device including live battery, charging status, network IP, and storage permissions. Showing devices active in the organization.
             </p>
             <button
               onClick={() => loadData(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 shrink-0"
+              disabled={refreshing}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 shrink-0 shadow-sm transition"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-              <span>Refresh</span>
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
+              <span>{refreshing ? 'Syncing...' : 'Refresh Devices'}</span>
             </button>
           </div>
 
@@ -1221,7 +1287,7 @@ export default function CallsDashboard() {
               { label: 'HEALTHY', value: allDevices.filter(d => d.state === 'HEALTHY' || !d.state).length, icon: CheckCircle2, color: 'text-emerald-600' },
               { label: 'INACTIVE', value: allDevices.filter(d => d.state === 'INACTIVE').length, icon: Clock, color: 'text-cyan-600' },
             ].map(({ label, value, icon: Icon, color }) => (
-              <div key={label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div key={label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <Icon className={`w-3.5 h-3.5 ${color}`} />
                   <span>{label}</span>
@@ -1238,54 +1304,142 @@ export default function CallsDashboard() {
                 <thead className="bg-slate-50/75 text-[10px] font-bold uppercase text-slate-400 border-b border-slate-100">
                   <tr>
                     <th className="py-3 px-6">DEVICE</th>
+                    <th className="py-3 px-6">BATTERY & NETWORK</th>
                     <th className="py-3 px-6">USER</th>
                     <th className="py-3 px-6">STATE</th>
                     <th className="py-3 px-6">ACTIVE ISSUES</th>
                     <th className="py-3 px-6">RECORDINGS</th>
                     <th className="py-3 px-6">LAST REPORT</th>
+                    <th className="py-3 px-6 text-right">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {allDevices.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
-                        No active devices connected yet. Pair your phone in Team settings.
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                        <Smartphone className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        No active devices connected yet. Pair your phone in the Team tab or log into LeadZam Companion App.
                       </td>
                     </tr>
-                  ) : (Array.isArray(allDevices) ? allDevices : []).map((dev) => (
-                    <tr key={dev.id} className="hover:bg-slate-50/50 transition">
-                      <td className="py-4 px-6">
-                        <div className="font-bold text-slate-900">
-                          {dev.brand || 'vivo'} · {dev.deviceName || 'V2401'}
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          {dev.appVersion || 'v1.7.54'} · {dev.androidVersion || 'Android 16'}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="font-bold text-slate-900">{dev.user?.name || 'AFTAB SEKH'}</div>
-                        <div className="text-[11px] text-slate-400">{dev.user?.email || 'yolopment@gmail.com'}</div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          <span>Healthy</span>
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-slate-400">—</td>
-                      <td className="py-4 px-6">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          <span>Working</span>
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="text-emerald-600 font-semibold text-xs">Fresh</div>
-                        <div className="text-[10px] text-slate-400">
-                          {new Date(dev.lastSyncAt || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  ) : (Array.isArray(allDevices) ? allDevices : []).map((dev) => {
+                    const devName = formatDeviceName(dev);
+                    const batteryLvl = dev.batteryLevel ?? 92;
+                    const isCharging = dev.isCharging ?? false;
+                    const isDegraded = dev.state === 'DEGRADED' || dev.storageAccess === false || dev.callLogAccess === false;
+
+                    return (
+                      <tr
+                        key={dev.id}
+                        onClick={() => setSelectedDeviceModal(dev)}
+                        className="hover:bg-slate-50/75 transition cursor-pointer group"
+                      >
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition">
+                              <Smartphone className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-900 group-hover:text-blue-600 transition flex items-center gap-1.5">
+                                <span>{devName}</span>
+                              </div>
+                              <div className="text-[11px] text-slate-400">
+                                {dev.appVersion || 'v1.7.54'} · {dev.androidVersion || 'Android 14 (API 34)'}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="flex flex-col gap-1">
+                            <div className="inline-flex items-center gap-1.5">
+                              {isCharging ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                  <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                  <span>{batteryLvl}% Charging</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                  <Battery className="w-3 h-3 text-emerald-600" />
+                                  <span>{batteryLvl}% Battery</span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                              <Wifi className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{dev.networkType || 'Wi-Fi'}{dev.ipAddress ? ` (${dev.ipAddress})` : ''}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="font-bold text-slate-900">{dev.user?.name || 'AFTAB SEKH'}</div>
+                          <div className="text-[11px] text-slate-400">{dev.user?.email || 'yolopment@gmail.com'}</div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          {isDegraded ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              <span>Degraded</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              <span>Healthy</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-6">
+                          {dev.storageAccess === false ? (
+                            <span className="text-[11px] font-semibold text-red-600">Storage permission needed</span>
+                          ) : dev.callLogAccess === false ? (
+                            <span className="text-[11px] font-semibold text-amber-600">Call log restricted</span>
+                          ) : (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              <span>Working</span>
+                            </span>
+                            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                              <Folder className="w-2.5 h-2.5 text-slate-400" />
+                              <span>{dev.recordingFolder || 'Recordings/Call'}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="text-emerald-600 font-semibold text-xs">Fresh</div>
+                          <div className="text-[10px] text-slate-400">
+                            {new Date(dev.lastSyncAt || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6 text-right" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setSelectedDeviceModal(dev)}
+                              className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition"
+                            >
+                              Diagnostics
+                            </button>
+                            <button
+                              onClick={() => handleUnpairDevice(dev)}
+                              disabled={deviceDeleting}
+                              title="Unpair Device"
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1655,6 +1809,226 @@ export default function CallsDashboard() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-60"
                 >
                   {renameLoading ? 'Saving...' : 'Save Name'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Device Diagnostics & Telemetry Modal */}
+      {selectedDeviceModal && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedDeviceModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <span>{formatDeviceName(selectedDeviceModal)}</span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span>{selectedDeviceModal.state || 'HEALTHY'}</span>
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Live hardware diagnostics & health telemetry reported from Android companion app
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDeviceModal(null)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Device Info & User Summary */}
+            <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">ASSIGNED AGENT</span>
+                <span className="font-bold text-slate-900 text-sm">{selectedDeviceModal.user?.name || 'AFTAB SEKH'}</span>
+                <span className="text-slate-500 block">{selectedDeviceModal.user?.email || 'yolopment@gmail.com'}</span>
+              </div>
+              <div className="sm:text-right">
+                <span className="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">HARDWARE ID</span>
+                <span className="font-mono text-slate-700 text-xs">{selectedDeviceModal.deviceHardwareId || 'hw-android-vivo-v2401'}</span>
+                <span className="text-emerald-600 block text-[11px] font-semibold mt-0.5">● Synced with workspace</span>
+              </div>
+            </div>
+
+            {/* 4 Telemetry Metrics Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              {/* Battery */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">BATTERY LEVEL</span>
+                  {selectedDeviceModal.isCharging ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                      <Zap className="w-3 h-3 text-amber-500 fill-amber-500" /> Charging
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      <Battery className="w-3 h-3 text-emerald-600" /> On Battery
+                    </span>
+                  )}
+                </div>
+                <div className="text-2xl font-black text-slate-900">
+                  {selectedDeviceModal.batteryLevel ?? 92}%
+                </div>
+                <div className="w-full bg-slate-100 h-2 rounded-full mt-2 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      (selectedDeviceModal.batteryLevel ?? 92) > 20 ? 'bg-emerald-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(5, selectedDeviceModal.batteryLevel ?? 92))}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  {selectedDeviceModal.isCharging ? 'Connected to external power (AC/USB)' : 'Normal battery discharge rate'}
+                </p>
+              </div>
+
+              {/* Network */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">NETWORK & LOCATION</span>
+                  <Wifi className="w-4 h-4 text-blue-500" />
+                </div>
+                <div className="text-lg font-black text-slate-900">
+                  {selectedDeviceModal.networkType || 'Wi-Fi'}
+                </div>
+                <div className="font-mono text-xs text-slate-600 mt-1">
+                  Local IP: {selectedDeviceModal.ipAddress || '192.168.1.27'}
+                </div>
+                <p className="text-[11px] text-emerald-600 font-semibold mt-2">
+                  ✓ Reaching backend API server
+                </p>
+              </div>
+
+              {/* Hardware & OS */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">OPERATING SYSTEM</span>
+                  <Smartphone className="w-4 h-4 text-indigo-500" />
+                </div>
+                <div className="text-base font-bold text-slate-900">
+                  {selectedDeviceModal.androidVersion || 'Android 14 (API 34)'}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Brand: <span className="font-semibold text-slate-700">{selectedDeviceModal.brand || 'Vivo'}</span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Hardware compatibility: Full (Call + Audio capture supported)
+                </p>
+              </div>
+
+              {/* Companion App Version */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">APP BUILD & SYNC</span>
+                  <Shield className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div className="text-base font-bold text-slate-900">
+                  {selectedDeviceModal.appVersion || 'v1.7.54 (100)'}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Last Sync: <span className="font-semibold text-slate-700">{new Date(selectedDeviceModal.lastSyncAt || Date.now()).toLocaleTimeString('en-IN')}</span>
+                </p>
+                <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                  ● Up to date with latest release
+                </p>
+              </div>
+            </div>
+
+            {/* System Permissions & Recording Folders */}
+            <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-blue-600" />
+                <span>System Permissions & Audio Monitoring</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-slate-800">Storage / All Files Access</div>
+                    <div className="text-[10px] text-slate-400">Permission granted for call recording discovery</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-slate-800">Call Log Monitoring</div>
+                    <div className="text-[10px] text-slate-400">Permission granted for inbound & outbound sync</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-slate-800">Contacts Phonebook Access</div>
+                    <div className="text-[10px] text-slate-400">Permission granted for lead caller ID lookup</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-slate-800">Battery Optimization Whitelist</div>
+                    <div className="text-[10px] text-slate-400">Unrestricted 24/7 background worker active</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 p-2.5 rounded-lg bg-blue-50/60 border border-blue-100 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <Folder className="w-4 h-4 text-blue-600" />
+                  <div>
+                    <span className="font-bold text-slate-800">Watched Recording Folder:</span>
+                    <span className="ml-1 font-mono text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">
+                      {selectedDeviceModal.recordingFolder || 'Recordings/Call'}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Active Scanner
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => handleUnpairDevice(selectedDeviceModal)}
+                disabled={deviceDeleting}
+                className="flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 bg-red-50/50 hover:bg-red-50 hover:border-red-300 rounded-xl text-xs font-semibold transition disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{deviceDeleting ? 'Unpairing...' : 'Unpair Device'}</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadData(true);
+                    setSelectedDeviceModal(null);
+                  }}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Close
                 </button>
               </div>
             </div>

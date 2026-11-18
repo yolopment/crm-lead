@@ -43,6 +43,22 @@ class SyncWorker(
             return@withContext Result.success()
         }
 
+        // Send live device telemetry heartbeat (battery level, charging status, network/IP, permissions)
+        try {
+            val telemetryPayload = com.crmlead.companion.telemetry.DeviceTelemetryHelper.getTelemetryPayload(
+                applicationContext,
+                deviceToken
+            )
+            val heartbeatRequest = Request.Builder()
+                .url("${serverUrl.trimEnd('/')}/api/v1/devices/pair")
+                .header("Content-Type", "application/json")
+                .post(RequestBody.create("application/json".toMediaType(), telemetryPayload.toString()))
+                .build()
+            client.newCall(heartbeatRequest).execute()
+        } catch (e: Exception) {
+            Log.w(TAG, "Heartbeat telemetry update failed: ${e.message}")
+        }
+
         val db = AppDatabase.getDatabase(applicationContext)
         val unsyncedCalls = db.callDao().getUnsyncedCalls()
 

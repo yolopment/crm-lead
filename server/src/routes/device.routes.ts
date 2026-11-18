@@ -10,5 +10,8 @@ router.post('/pair', DeviceController.pairDevice);
 // List paired devices (authenticated by dashboard JWT)
 router.get('/', authenticate, DeviceController.listDevices);
 
+// Unpair / delete device
+router.delete('/:id', authenticate, DeviceController.unpairDevice);
+
 export default router;
 
