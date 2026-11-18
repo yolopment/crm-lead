@@ -11,3 +11,4 @@ router.post('/pair', DeviceController.pairDevice);
 router.get('/', authenticate, DeviceController.listDevices);
 
 export default router;
+

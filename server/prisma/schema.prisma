@@ -36,19 +36,25 @@ enum LeadStage {
 }
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  phone       String?
-  website     String?
-  callPolicy  String?  @default("{}")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String       @id @default(uuid())
+  name             String
+  slug             String       @unique
+  phone            String?
+  website          String?
+  callPolicy       String?      @default("{}")
+  captureScope     String       @default("ALL") // "ALL" or "SAVED_CONTACTS"
+  allowMemberScope Boolean      @default(true)
+  recordCalls      Boolean      @default(true)
+  smartFollowUps   Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
-  users       User[]
-  leads       Lead[]
-  calls       Call[]
-  devices     Device[]
+  users            User[]
+  leads            Lead[]
+  calls            Call[]
+  devices          Device[]
+  invitations      Invitation[]
+  dntList          DoNotTrack[]
 }
 
 model User {
@@ -129,9 +135,12 @@ model Device {
   user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceHardwareId String       @unique
   deviceName       String?
+  brand            String?
   androidVersion   String?
   appVersion       String?
   batteryLevel     Int?
+  state            String       @default("HEALTHY") // HEALTHY, DEGRADED, BROKEN, INACTIVE
+  recordingsWorking Boolean     @default(true)
   lastSyncAt       DateTime?
   pairingToken     String?      @unique
   createdAt        DateTime     @default(now())
@@ -146,5 +155,29 @@ model Note {
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content   String
   createdAt DateTime @default(now())
+}
+
+model Invitation {
+  id        String       @id @default(uuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email     String
+  role      Role         @default(AGENT)
+  token     String       @unique
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+
+  @@unique([orgId, email])
+}
+
+model DoNotTrack {
+  id        String       @id @default(uuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  phone     String
+  reason    String?
+  createdAt DateTime     @default(now())
+
+  @@unique([orgId, phone])
 }
 

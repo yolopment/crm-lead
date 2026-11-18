@@ -10,6 +10,7 @@ import callRoutes from './routes/call.routes.js';
 import leadRoutes from './routes/lead.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import deviceRoutes from './routes/device.routes.js';
+import policyRoutes from './routes/policy.routes.js';
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/api/v1/calls', callRoutes);
 app.use('/api/v1/leads', leadRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/devices', deviceRoutes);
+app.use('/api/v1/policy', policyRoutes);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

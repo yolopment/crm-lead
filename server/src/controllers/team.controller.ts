@@ -6,43 +6,55 @@ import { Role, CallStatus } from '@prisma/client';
 
 export class TeamController {
   /**
-   * List all team members with their real-time call performance metrics
+   * List all team members with their real-time call performance metrics and pending invitations
    */
   static async listMembers(req: Request, res: Response): Promise<void> {
     try {
       const orgId = req.user!.orgId;
 
-      const members = await prisma.user.findMany({
-        where: { orgId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          role: true,
-          isOnLeave: true,
-          createdAt: true,
-          devices: {
-            select: {
-              id: true,
-              deviceName: true,
-              lastSyncAt: true,
-              batteryLevel: true,
+      const [members, invitations] = await Promise.all([
+        prisma.user.findMany({
+          where: { orgId },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            role: true,
+            isOnLeave: true,
+            deviceToken: true,
+            createdAt: true,
+            devices: {
+              select: {
+                id: true,
+                deviceName: true,
+                brand: true,
+                androidVersion: true,
+                appVersion: true,
+                state: true,
+                recordingsWorking: true,
+                lastSyncAt: true,
+                batteryLevel: true,
+              },
+            },
+            calls: {
+              select: {
+                id: true,
+                status: true,
+                durationSec: true,
+              },
             },
           },
-          calls: {
-            select: {
-              id: true,
-              status: true,
-              durationSec: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'asc' },
-      });
+          orderBy: { createdAt: 'asc' },
+        }),
+        prisma.invitation.findMany({
+          where: { orgId },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
 
       // Format team members and compute individual call statistics
-      const formatted = members.map((member) => {
+      const formattedMembers = members.map((member) => {
         const totalCalls = member.calls.length;
         const connectedCalls = member.calls.filter((c) => c.status === CallStatus.CONNECTED).length;
         const missedCalls = member.calls.filter((c) => c.status === CallStatus.MISSED).length;
@@ -59,6 +71,10 @@ export class TeamController {
           createdAt: member.createdAt,
           hasPairedDevice: member.devices.length > 0,
           devices: member.devices,
+          deviceSummary: member.devices.length > 0
+            ? `${member.devices.length} device · ${member.devices[0].deviceName || 'Android'}`
+            : null,
+          deviceToken: member.deviceToken,
           stats: {
             totalCalls,
             connectedCalls,
@@ -70,9 +86,111 @@ export class TeamController {
         };
       });
 
-      res.status(200).json(formatted);
+      const formattedInvites = invitations.map((inv) => ({
+        id: inv.id,
+        email: inv.email,
+        role: inv.role === 'ADMIN' ? 'Admin' : 'Caller',
+        expiresFormatted: `expires ${new Date(inv.expiresAt).toLocaleDateString('en-GB')}`,
+        expiresAt: inv.expiresAt,
+        createdAt: inv.createdAt,
+      }));
+
+      // Return both arrays so legacy consumers still work or new tab consumer can read both
+      res.status(200).json({
+        members: formattedMembers,
+        pendingInvitations: formattedInvites,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to fetch team members.' });
+    }
+  }
+
+  /**
+   * Invite a new teammate by email (LeadZam screenshot 1)
+   */
+  static async inviteTeammate(req: Request, res: Response): Promise<void> {
+    try {
+      const orgId = req.user!.orgId;
+      const { email, role = 'AGENT' } = req.body;
+
+      if (!email) {
+        res.status(400).json({ error: 'Email address is required.' });
+        return;
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
+      if (existingUser) {
+        res.status(409).json({ error: 'A team member with this email address already exists.' });
+        return;
+      }
+
+      const token = crypto.randomBytes(16).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const invitation = await prisma.invitation.upsert({
+        where: { orgId_email: { orgId, email: cleanEmail } },
+        update: {
+          role: role === 'ADMIN' ? Role.ADMIN : Role.AGENT,
+          token,
+          expiresAt,
+        },
+        create: {
+          orgId,
+          email: cleanEmail,
+          role: role === 'ADMIN' ? Role.ADMIN : Role.AGENT,
+          token,
+          expiresAt,
+        },
+      });
+
+      res.status(201).json({
+        message: `Invitation sent to ${cleanEmail}.`,
+        invitation,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to invite teammate.' });
+    }
+  }
+
+  /**
+   * Revoke a pending teammate invitation
+   */
+  static async revokeInvite(req: Request, res: Response): Promise<void> {
+    try {
+      const orgId = req.user!.orgId;
+      const { id } = req.params;
+
+      await prisma.invitation.deleteMany({
+        where: { id, orgId },
+      });
+
+      res.status(200).json({ message: 'Invitation revoked.' });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to revoke invitation.' });
+    }
+  }
+
+  /**
+   * Resend / extend a pending teammate invitation
+   */
+  static async resendInvite(req: Request, res: Response): Promise<void> {
+    try {
+      const orgId = req.user!.orgId;
+      const { id } = req.params;
+
+      const updated = await prisma.invitation.updateMany({
+        where: { id, orgId },
+        data: {
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      res.status(200).json({ message: 'Invitation resent.' });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to resend invitation.' });
     }
   }
 
@@ -170,4 +288,3 @@ export class TeamController {
     }
   }
 }
-
