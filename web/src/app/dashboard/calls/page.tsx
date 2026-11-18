@@ -461,7 +461,7 @@ export default function CallsDashboard() {
                   className="appearance-none bg-white border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
                   <option value="all">All agents</option>
-                  {team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  {(Array.isArray(team) ? team : []).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
             </div>
@@ -542,7 +542,7 @@ export default function CallsDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {team.map((member, idx) => (
+                  {(Array.isArray(team) ? team : []).map((member, idx) => (
                     <tr
                       key={member.id}
                       className="hover:bg-slate-50/50 transition cursor-pointer"
@@ -616,7 +616,7 @@ export default function CallsDashboard() {
                   <p className="text-sm text-slate-400 font-medium">No calls logged yet</p>
                   <p className="text-xs text-slate-300 mt-1">Make a phone call from your paired companion app to see it sync live</p>
                 </div>
-              ) : calls.map((call) => (
+              ) : (Array.isArray(calls) ? calls : []).map((call) => (
                 <div
                   key={call.id}
                   className="p-4 px-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/50 transition"
@@ -809,7 +809,7 @@ export default function CallsDashboard() {
               MEMBERS
             </div>
 
-            {team.map((member) => (
+            {(Array.isArray(team) ? team : []).map((member) => (
               <div
                 key={member.id}
                 className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
@@ -850,7 +850,7 @@ export default function CallsDashboard() {
                 PENDING INVITATIONS
               </div>
 
-              {invitations.map((inv) => (
+              {(Array.isArray(invitations) ? invitations : []).map((inv) => (
                 <div
                   key={inv.id}
                   className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
@@ -1036,7 +1036,7 @@ export default function CallsDashboard() {
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
-                {policy.dntList.map((item) => (
+                {(Array.isArray(policy?.dntList) ? policy.dntList : []).map((item) => (
                   <div key={item.id} className="py-3 flex items-center justify-between text-xs">
                     <div>
                       <span className="font-semibold text-slate-900">{item.phone}</span>
@@ -1114,7 +1114,7 @@ export default function CallsDashboard() {
                         No active devices connected yet. Pair your phone in Team settings.
                       </td>
                     </tr>
-                  ) : allDevices.map((dev) => (
+                  ) : (Array.isArray(allDevices) ? allDevices : []).map((dev) => (
                     <tr key={dev.id} className="hover:bg-slate-50/50 transition">
                       <td className="py-4 px-6">
                         <div className="font-bold text-slate-900">

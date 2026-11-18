@@ -15,22 +15,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.crmlead.companion.data.AppDatabase
-import com.crmlead.companion.data.CallEntity
 import com.crmlead.companion.importer.CallLogImporter
 import com.crmlead.companion.service.CallRecordingService
 import com.crmlead.companion.sim.SimInfo
 import com.crmlead.companion.sim.SimManagerHelper
 import com.crmlead.companion.sync.RecordingSyncManager
 import com.crmlead.companion.sync.SyncWorker
+import com.crmlead.companion.ui.navigation.AppNavScreen
+import com.crmlead.companion.ui.navigation.LeadZamDrawerContent
 import com.crmlead.companion.ui.screens.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -50,7 +54,7 @@ enum class SetupStep {
     STEP_WORK_SIM,
     SETUP_COMPLETE,
     IMPORT_CALLS,
-    DASHBOARD
+    MAIN_APP
 }
 
 class MainActivity : ComponentActivity() {
@@ -103,35 +107,38 @@ class MainActivity : ComponentActivity() {
     }
 
     private var currentStep by mutableStateOf(SetupStep.SIGN_IN)
+    private var currentNavScreen by mutableStateOf(AppNavScreen.CALLS)
     private var isSigningIn by mutableStateOf(false)
     private var isImporting by mutableStateOf(false)
     private var importStatusText by mutableStateOf("")
     private var isSyncingRecordings by mutableStateOf(false)
-    private var syncProgressStatus by mutableStateOf("")
     private var isStorageAccessGranted by mutableStateOf(false)
     private var detectedSims by mutableStateOf<List<SimInfo>>(emptyList())
     private var selectedSimSlot by mutableStateOf(-1)
     private var serverUrlState by mutableStateOf(DEFAULT_SERVER_URL)
+    private var showServerChangeDialog by mutableStateOf(false)
+    private var tempServerUrl by mutableStateOf(DEFAULT_SERVER_URL)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
 
-        // Automatic Wi-Fi IP Migration: if user previously had 192.168.1.40, migrate to current 192.168.1.27
+        // Automatic Wi-Fi IP Migration
         var currentSavedUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
         if (currentSavedUrl.contains("192.168.1.40")) {
             currentSavedUrl = currentSavedUrl.replace("192.168.1.40", "192.168.1.27")
             prefs.edit().putString(SyncWorker.KEY_SERVER_URL, currentSavedUrl).apply()
         }
         serverUrlState = currentSavedUrl
+        tempServerUrl = currentSavedUrl
 
         val isOnboardingCompleted = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
         val isPaired = prefs.getBoolean(KEY_IS_PAIRED, false)
         selectedSimSlot = prefs.getInt(KEY_WORK_SIM_SLOT, -1)
 
         currentStep = if (isOnboardingCompleted && isPaired) {
-            SetupStep.DASHBOARD
+            SetupStep.MAIN_APP
         } else if (isPaired) {
             SetupStep.SETUP_OVERVIEW
         } else {
@@ -157,141 +164,212 @@ class MainActivity : ComponentActivity() {
                     val callsList by db.callDao().getAllCallsFlow().collectAsState(initial = emptyList())
                     val userName = prefs.getString(KEY_PAIRED_USER, "AFTAB SEKH") ?: "AFTAB SEKH"
                     val orgName = prefs.getString(KEY_PAIRED_ORG, "YOLOPMENT") ?: "YOLOPMENT"
-                    val workSimName = prefs.getString(KEY_WORK_SIM_NAME, "All SIMs") ?: "All SIMs"
 
-                    AnimatedContent(
-                        targetState = currentStep,
-                        transitionSpec = {
-                            fadeIn() togetherWith fadeOut()
-                        },
-                        label = "onboarding_navigation"
-                    ) { step ->
-                        when (step) {
-                            SetupStep.SIGN_IN -> {
-                                SignInScreen(
-                                    initialServerUrl = serverUrlState,
-                                    initialToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: "",
-                                    isLoading = isSigningIn,
-                                    onSignIn = { email, pass, url ->
-                                        serverUrlState = url
-                                        loginWithCredentials(email, pass, url)
+                    // Server Change Dialog
+                    if (showServerChangeDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showServerChangeDialog = false },
+                            title = {
+                                Text("Change Wi-Fi / Server IP", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                            },
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "Enter current IP for your Mac or Hostinger server. (e.g. http://192.168.1.27:5001)",
+                                        fontSize = 13.sp,
+                                        color = TextMuted,
+                                        modifier = Modifier.padding(bottom = 12.dp)
+                                    )
+                                    OutlinedTextField(
+                                        value = tempServerUrl,
+                                        onValueChange = { tempServerUrl = it },
+                                        label = { Text("Server URL") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        updateServerUrl(tempServerUrl)
+                                        showServerChangeDialog = false
                                     },
-                                    onPairWithToken = { url, token ->
-                                        serverUrlState = url
-                                        pairWithToken(url, token)
-                                    }
-                                )
+                                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                                ) {
+                                    Text("Save & Connect")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showServerChangeDialog = false }) {
+                                    Text("Cancel", color = TextSubtle)
+                                }
                             }
-                            SetupStep.SETUP_OVERVIEW -> {
-                                SetupOverviewScreen(
-                                    onGetStarted = {
-                                        currentStep = SetupStep.STEP_CALL_TRACKING
-                                    }
-                                )
-                            }
-                            SetupStep.STEP_CALL_TRACKING -> {
-                                StepCallTrackingScreen(
-                                    onAllow = {
-                                        requestCallTrackingPermissions()
-                                    },
-                                    onSignOut = {
-                                        signOut()
-                                    }
-                                )
-                            }
-                            SetupStep.STEP_NOTIFICATIONS -> {
-                                StepNotificationsScreen(
-                                    onAllow = {
-                                        requestNotificationPermissions()
-                                    },
-                                    onSkip = {
-                                        currentStep = SetupStep.STEP_WORK_SIM
-                                    }
-                                )
-                            }
-                            SetupStep.STEP_WORK_SIM -> {
-                                val hasPhonePermission = ContextCompat.checkSelfPermission(
-                                    this@MainActivity,
-                                    Manifest.permission.READ_PHONE_STATE
-                                ) == PackageManager.PERMISSION_GRANTED
+                        )
+                    }
 
-                                StepWorkSimScreen(
-                                    hasPhonePermission = hasPhonePermission,
-                                    simCards = detectedSims,
-                                    selectedSimSlot = selectedSimSlot,
-                                    onRequestPhonePermission = {
-                                        phoneStatePermissionLauncher.launch(
-                                            arrayOf(
-                                                Manifest.permission.READ_PHONE_STATE,
-                                                Manifest.permission.READ_PHONE_NUMBERS
-                                            )
-                                        )
-                                    },
-                                    onSelectSim = { slot ->
-                                        selectedSimSlot = slot
-                                        val simName = if (slot == -1) "All SIMs" else "SIM ${slot + 1}"
-                                        prefs.edit()
-                                            .putInt(KEY_WORK_SIM_SLOT, slot)
-                                            .putString(KEY_WORK_SIM_NAME, simName)
-                                            .apply()
-                                        currentStep = SetupStep.SETUP_COMPLETE
-                                    }
-                                )
-                            }
-                            SetupStep.SETUP_COMPLETE -> {
-                                SetupCompleteScreen(
-                                    onContinue = {
-                                        currentStep = SetupStep.IMPORT_CALLS
-                                    },
-                                    onKeepRunningClick = {
-                                        requestBatteryWhitelist()
-                                    }
-                                )
-                            }
-                            SetupStep.IMPORT_CALLS -> {
-                                ImportRecentCallsScreen(
-                                    isImporting = isImporting,
-                                    importStatusText = importStatusText,
-                                    onImportLast30Days = {
-                                        importCallHistory(30)
-                                    },
-                                    onImportLast7Days = {
-                                        importCallHistory(7)
-                                    },
-                                    onNotNow = {
-                                        finishOnboarding()
-                                    }
-                                )
-                            }
-                            SetupStep.DASHBOARD -> {
-                                CompanionDashboardScreen(
+                    if (currentStep == SetupStep.MAIN_APP) {
+                        // FULL MAIN LEADZAM APP WITH NAVIGATION DRAWER
+                        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+                        val scope = rememberCoroutineScope()
+
+                        ModalNavigationDrawer(
+                            drawerState = drawerState,
+                            drawerContent = {
+                                LeadZamDrawerContent(
+                                    currentScreen = currentNavScreen,
                                     userName = userName,
                                     orgName = orgName,
-                                    serverUrl = serverUrlState,
-                                    workSimName = workSimName,
-                                    recentCalls = callsList,
-                                    isStorageAccessGranted = isStorageAccessGranted,
-                                    isSyncingRecordings = isSyncingRecordings,
-                                    syncProgressStatus = syncProgressStatus,
-                                    onSyncNow = {
-                                        triggerManualSync()
-                                    },
-                                    onSyncRecordings = {
-                                        syncRecordingsWithBackend()
-                                    },
-                                    onRequestStorageAccess = {
-                                        requestStorageAccess()
-                                    },
-                                    onUpdateServerUrl = { newUrl ->
-                                        updateServerUrl(newUrl)
-                                    },
-                                    onReviewPermissions = {
-                                        currentStep = SetupStep.SETUP_COMPLETE
+                                    onNavigate = { screen ->
+                                        currentNavScreen = screen
+                                        scope.launch { drawerState.close() }
                                     },
                                     onSignOut = {
+                                        scope.launch { drawerState.close() }
                                         signOut()
                                     }
                                 )
+                            }
+                        ) {
+                            when (currentNavScreen) {
+                                AppNavScreen.CALLS -> {
+                                    CallsScreen(
+                                        callsList = callsList,
+                                        serverUrl = serverUrlState,
+                                        userName = userName,
+                                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                                        onCheckNewRecordings = { syncRecordingsWithBackend() },
+                                        onRetrySync = { triggerManualSync() },
+                                        onChangeWifiIp = { showServerChangeDialog = true }
+                                    )
+                                }
+                                AppNavScreen.ANALYTICS -> {
+                                    AnalyticsScreen(
+                                        callsList = callsList,
+                                        userName = userName,
+                                        onOpenDrawer = { scope.launch { drawerState.open() } }
+                                    )
+                                }
+                                AppNavScreen.SIM_CALLING -> {
+                                    SimCallingScreen(
+                                        currentSimSlot = selectedSimSlot,
+                                        simCards = detectedSims,
+                                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                                        onSaveSimSelection = { slot ->
+                                            selectedSimSlot = slot
+                                            val simName = if (slot == -1) "All SIMs" else "SIM ${slot + 1}"
+                                            prefs.edit()
+                                                .putInt(KEY_WORK_SIM_SLOT, slot)
+                                                .putString(KEY_WORK_SIM_NAME, simName)
+                                                .apply()
+                                            Toast.makeText(this@MainActivity, "Tracked SIM updated to $simName", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                                AppNavScreen.PERMISSIONS -> {
+                                    PermissionsScreen(
+                                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                                        onRequestStorageAccess = { requestStorageAccess() },
+                                        onRequestBatteryWhitelist = { requestBatteryWhitelist() },
+                                        onNavigateToSim = { currentNavScreen = AppNavScreen.SIM_CALLING }
+                                    )
+                                }
+                                AppNavScreen.SETTINGS -> {
+                                    SettingsScreen(
+                                        serverUrl = serverUrlState,
+                                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                                        onChangeServerUrl = { showServerChangeDialog = true },
+                                        onSignOut = { signOut() }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // ONBOARDING & SETUP MULTI-STEP FLOW
+                        AnimatedContent(
+                            targetState = currentStep,
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            label = "onboarding_navigation"
+                        ) { step ->
+                            when (step) {
+                                SetupStep.SIGN_IN -> {
+                                    SignInScreen(
+                                        initialServerUrl = serverUrlState,
+                                        initialToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: "",
+                                        isLoading = isSigningIn,
+                                        onSignIn = { email, pass, url ->
+                                            serverUrlState = url
+                                            loginWithCredentials(email, pass, url)
+                                        },
+                                        onPairWithToken = { url, token ->
+                                            serverUrlState = url
+                                            pairWithToken(url, token)
+                                        }
+                                    )
+                                }
+                                SetupStep.SETUP_OVERVIEW -> {
+                                    SetupOverviewScreen(
+                                        onGetStarted = { currentStep = SetupStep.STEP_CALL_TRACKING }
+                                    )
+                                }
+                                SetupStep.STEP_CALL_TRACKING -> {
+                                    StepCallTrackingScreen(
+                                        onAllow = { requestCallTrackingPermissions() },
+                                        onSignOut = { signOut() }
+                                    )
+                                }
+                                SetupStep.STEP_NOTIFICATIONS -> {
+                                    StepNotificationsScreen(
+                                        onAllow = { requestNotificationPermissions() },
+                                        onSkip = { currentStep = SetupStep.STEP_WORK_SIM }
+                                    )
+                                }
+                                SetupStep.STEP_WORK_SIM -> {
+                                    val hasPhonePermission = ContextCompat.checkSelfPermission(
+                                        this@MainActivity,
+                                        Manifest.permission.READ_PHONE_STATE
+                                    ) == PackageManager.PERMISSION_GRANTED
+
+                                    StepWorkSimScreen(
+                                        hasPhonePermission = hasPhonePermission,
+                                        simCards = detectedSims,
+                                        selectedSimSlot = selectedSimSlot,
+                                        onRequestPhonePermission = {
+                                            phoneStatePermissionLauncher.launch(
+                                                arrayOf(
+                                                    Manifest.permission.READ_PHONE_STATE,
+                                                    Manifest.permission.READ_PHONE_NUMBERS
+                                                )
+                                            )
+                                        },
+                                        onSelectSim = { slot ->
+                                            selectedSimSlot = slot
+                                            val simName = if (slot == -1) "All SIMs" else "SIM ${slot + 1}"
+                                            prefs.edit()
+                                                .putInt(KEY_WORK_SIM_SLOT, slot)
+                                                .putString(KEY_WORK_SIM_NAME, simName)
+                                                .apply()
+                                            currentStep = SetupStep.SETUP_COMPLETE
+                                        }
+                                    )
+                                }
+                                SetupStep.SETUP_COMPLETE -> {
+                                    SetupCompleteScreen(
+                                        onContinue = { currentStep = SetupStep.IMPORT_CALLS },
+                                        onKeepRunningClick = { requestBatteryWhitelist() }
+                                    )
+                                }
+                                SetupStep.IMPORT_CALLS -> {
+                                    ImportRecentCallsScreen(
+                                        isImporting = isImporting,
+                                        importStatusText = importStatusText,
+                                        onImportLast30Days = { importCallHistory(30) },
+                                        onImportLast7Days = { importCallHistory(7) },
+                                        onNotNow = { finishOnboarding() }
+                                    )
+                                }
+                                else -> {}
                             }
                         }
                     }
@@ -377,12 +455,10 @@ class MainActivity : ComponentActivity() {
         }
 
         isSyncingRecordings = true
-        syncProgressStatus = "Scanning phone for call recordings..."
+        Toast.makeText(this, "Scanning phone for call recordings...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch {
-            val result = RecordingSyncManager.scanAndSyncAllRecordings(this@MainActivity) { status ->
-                syncProgressStatus = status
-            }
+            val result = RecordingSyncManager.scanAndSyncAllRecordings(this@MainActivity)
             isSyncingRecordings = false
 
             result.onSuccess { (matched, uploaded) ->
@@ -578,9 +654,10 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, true).apply()
         CallRecordingService.start(this)
-        currentStep = SetupStep.DASHBOARD
+        currentNavScreen = AppNavScreen.CALLS
+        currentStep = SetupStep.MAIN_APP
 
-        // Also trigger background recording match
+        // Trigger recording scanner in background
         lifecycleScope.launch {
             RecordingSyncManager.scanAndSyncAllRecordings(this@MainActivity)
         }
