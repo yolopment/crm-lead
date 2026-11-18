@@ -111,6 +111,12 @@ export class CallController {
         });
       }
 
+      // Update device last sync timestamp
+      await prisma.device.updateMany({
+        where: { userId },
+        data: { lastSyncAt: new Date() },
+      });
+
       res.status(200).json({
         message: `Successfully processed ${syncedRecords.length} calls.`,
         synced: syncedRecords,

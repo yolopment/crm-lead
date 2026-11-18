@@ -260,10 +260,15 @@ export default function SettingsPage() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {member.devices.length > 0 ? (
-                            <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              Paired
-                            </span>
+                            <div className="text-right">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                {member.devices[0].deviceName || 'Android Connected'}
+                              </span>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                Active · {new Date(member.devices[0].lastSyncAt || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
                           ) : (
                             <span className="text-[11px] text-slate-400">No device</span>
                           )}

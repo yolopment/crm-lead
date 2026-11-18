@@ -9,6 +9,7 @@ import teamRoutes from './routes/team.routes.js';
 import callRoutes from './routes/call.routes.js';
 import leadRoutes from './routes/lead.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import deviceRoutes from './routes/device.routes.js';
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/calls', callRoutes);
 app.use('/api/v1/leads', leadRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
+app.use('/api/v1/devices', deviceRoutes);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -308,9 +308,9 @@ export default function CallsDashboard() {
       {/* Sync Status Line */}
       <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-        <span>{calls.length} calls synced</span>
+        <span>{calls.length} {calls.length === 1 ? 'call' : 'calls'} synced</span>
         <span>·</span>
-        <span>Nov 12 - Nov 18, 2026</span>
+        <span>{new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
         <span>·</span>
         <span>Asia/Kolkata</span>
       </div>
