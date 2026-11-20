@@ -20,6 +20,7 @@ import superadminRoutes from './routes/superadmin.routes.js';
 import gdriveOAuthRoutes from './routes/gdrive-oauth.routes.js';
 import billingRoutes from './routes/billing.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
+import publicRoutes from './routes/public.routes.js';
 import { restoreActiveWhatsAppSessions } from './services/whatsapp.service.js';
 
 const app = express();
@@ -27,6 +28,7 @@ const app = express();
 // Security and middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allows audio playback across domains
+  contentSecurityPolicy: false,
 }));
 app.use(cors({
   origin: config.corsOrigins.includes('*') ? true : config.corsOrigins,
@@ -35,6 +37,9 @@ app.use(cors({
 app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Public landing, SEO, AI visibility, and documentation routes
+app.use('/', publicRoutes);
 
 // Health Check for Hostinger Nginx monitoring
 app.get('/health', (req, res) => {
