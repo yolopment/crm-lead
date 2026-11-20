@@ -2,11 +2,17 @@ import { Router, Request, Response } from 'express';
 
 const router = Router();
 
-const LLMS_TEXT = `# StaffCaller Cloud — AI & Agent Documentation
+const LLMS_TEXT = `# StaffCaller Cloud
 > Production SaaS CRM for Automatic Call Tracking, Audio Recording Sync & Lead Distribution
 
-## Summary
-StaffCaller Cloud is a high-performance multi-tenant SaaS CRM built for modern sales teams. It automatically tracks phone calls, syncs call audio recordings from native Android devices, orchestrates round-robin lead distribution, and integrates with WhatsApp Web and cloud storage.
+## Documentation & Key Links
+- [Platform Home](https://staffcaller.cloud/): Overview, live features, and architecture
+- [About StaffCaller](https://staffcaller.cloud/about): Organization mission, technical design, and companion app telemetry
+- [Technical Contact & Support](https://staffcaller.cloud/contact): Inquiries, enterprise support, and SLA
+- [System Health](https://staffcaller.cloud/health): Live API, uptime, and system status
+- [Terms of Service](https://staffcaller.cloud/terms): Platform license and acceptable usage policy
+- [Privacy Policy](https://staffcaller.cloud/privacy): Data security, encryption, and audio isolation policy
+- [MCP Server Card](https://staffcaller.cloud/.well-known/mcp/server-card.json): Machine-readable Model Context Protocol server capabilities
 
 ## Core Capabilities
 - **Automatic Call Syncing**: Native Android companion listener capturing incoming and outgoing calls on IDLE state.
@@ -16,15 +22,7 @@ StaffCaller Cloud is a high-performance multi-tenant SaaS CRM built for modern s
 - **Cloud Storage Options**: Dual-driver architecture supporting Cloudflare R2 and Google Drive.
 - **WhatsApp Web Integration**: Multi-session Baileys client for automated client outreach and messaging.
 
-## Key URLs & Endpoints
-- Homepage: https://staffcaller.cloud/
-- System Health: https://staffcaller.cloud/health
-- API Base: https://staffcaller.cloud/api/v1
-- MCP Server Card: https://staffcaller.cloud/.well-known/mcp/server-card.json
-- Sitemap: https://staffcaller.cloud/sitemap.xml
-- Support Email: support@staffcaller.cloud
-
-## Authentication & APIs
+## Key APIs
 - POST /api/v1/auth/login: User authentication with JWT
 - POST /api/v1/auth/register: Organization & admin registration
 - GET /api/v1/leads: Paginated lead management
@@ -108,6 +106,8 @@ const MCP_SERVER_CARD = {
   name: "staffcaller-crm-api",
   description: "StaffCaller Cloud CRM and automatic call audio synchronization platform",
   version: "1.0.0",
+  url: "https://staffcaller.cloud/api/v1",
+  endpoint: "https://staffcaller.cloud/api/v1",
   homepage: "https://staffcaller.cloud",
   capabilities: {
     tools: true,
@@ -157,8 +157,15 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
         "name": "StaffCaller",
         "url": "https://staffcaller.cloud",
         "email": "support@staffcaller.cloud",
+        "telephone": "+1-800-555-0199",
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "US",
+          "addressLocality": "San Francisco"
+        },
         "contactPoint": {
           "@type": "ContactPoint",
+          "telephone": "+1-800-555-0199",
           "email": "support@staffcaller.cloud",
           "contactType": "customer service"
         },
@@ -188,6 +195,23 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       }
     ]
   }
+  </script>
+
+  <!-- WebMCP Agent Tools Registration -->
+  <script>
+    if (typeof window !== 'undefined' && window.navigator && window.navigator.modelContext && typeof window.navigator.modelContext.registerTool === 'function') {
+      try {
+        window.navigator.modelContext.registerTool({
+          name: 'get_staffcaller_status',
+          description: 'Get current system status and health of StaffCaller Cloud CRM',
+          inputSchema: { type: 'object', properties: {} },
+          execute: async function() {
+            const res = await fetch('/health');
+            return await res.json();
+          }
+        });
+      } catch(e) {}
+    }
   </script>
 
   <style>
@@ -434,7 +458,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
   <footer>
     <div>
       &copy; 2026 StaffCaller Cloud. Hosted on Hostinger. All rights reserved.
-      <br>Contact: <a href="mailto:support@staffcaller.cloud">support@staffcaller.cloud</a>
+      <br>Contact: <a href="mailto:support@staffcaller.cloud">support@staffcaller.cloud</a> &bull; Tel: <a href="tel:+18005550199">+1 (800) 555-0199</a>
     </div>
     <div class="footer-links">
       <a href="/about">About</a>
@@ -473,7 +497,7 @@ function renderSimplePage(title: string, content: string) {
   <h1>${title}</h1>
   ${content}
   <footer>
-    &copy; 2026 StaffCaller Cloud &bull; Support: <a href="mailto:support@staffcaller.cloud">support@staffcaller.cloud</a>
+    &copy; 2026 StaffCaller Cloud &bull; Support: <a href="mailto:support@staffcaller.cloud">support@staffcaller.cloud</a> &bull; Tel: <a href="tel:+18005550199">+1 (800) 555-0199</a>
   </footer>
 </body>
 </html>`;
@@ -539,6 +563,7 @@ router.get('/contact', (req: Request, res: Response) => {
   res.send(renderSimplePage('Contact Support & Inquiries', `
     <p>We are here to assist with platform deployment, companion app configuration, and enterprise API access.</p>
     <p><strong>Primary Support Email:</strong> <a href="mailto:support@staffcaller.cloud">support@staffcaller.cloud</a></p>
+    <p><strong>Phone:</strong> <a href="tel:+18005550199">+1 (800) 555-0199</a></p>
     <p><strong>Engineering & Infrastructure:</strong> Hosted on Hostinger Cloud Infrastructure.</p>
   `));
 });
