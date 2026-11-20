@@ -15,14 +15,18 @@ export async function initDatabase() {
     if (msg.includes('does not exist') || msg.includes("doesn't exist") || msg.includes('1146')) {
       console.log('🔄 Database tables not found. Running Prisma db push to create MySQL schema...');
       try {
-        execSync('npx prisma db push --skip-generate --accept-data-loss', {
-          stdio: 'inherit',
-          env: process.env,
+        const prismaCli = './node_modules/prisma/build/index.js';
+        const cmd = `${process.execPath} ${prismaCli} db push --schema=./prisma/schema.prisma --skip-generate --accept-data-loss`;
+        const output = execSync(cmd, {
+          encoding: 'utf-8',
+          env: { ...process.env, PATH: `${process.env.PATH}:./node_modules/.bin` },
         });
-        console.log('✅ Prisma MySQL schema created successfully!');
+        console.log('✅ Prisma MySQL schema created successfully!\n', output);
         tablesExist = true;
-      } catch (pushErr) {
-        console.error('❌ Failed to push Prisma schema to database:', pushErr);
+      } catch (pushErr: any) {
+        console.error('❌ Failed to push Prisma schema to database:', pushErr.message);
+        if (pushErr.stdout) console.error('Prisma stdout:', pushErr.stdout.toString());
+        if (pushErr.stderr) console.error('Prisma stderr:', pushErr.stderr.toString());
         return;
       }
     } else {
