@@ -12,6 +12,15 @@ import webhookRoutes from './routes/webhook.routes.js';
 import deviceRoutes from './routes/device.routes.js';
 import policyRoutes from './routes/policy.routes.js';
 import smsRoutes from './routes/sms.routes.js';
+import settingsRoutes from './routes/settings.routes.js';
+import formRoutes from './routes/form.routes.js';
+import followupRoutes from './routes/followup.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
+import superadminRoutes from './routes/superadmin.routes.js';
+import gdriveOAuthRoutes from './routes/gdrive-oauth.routes.js';
+import billingRoutes from './routes/billing.routes.js';
+import whatsappRoutes from './routes/whatsapp.routes.js';
+import { restoreActiveWhatsAppSessions } from './services/whatsapp.service.js';
 
 const app = express();
 
@@ -46,6 +55,14 @@ app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/devices', deviceRoutes);
 app.use('/api/v1/policy', policyRoutes);
 app.use('/api/v1/sms', smsRoutes);
+app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/forms', formRoutes);
+app.use('/api/v1/followups', followupRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/superadmin', superadminRoutes);
+app.use('/api/v1/integrations/gdrive', gdriveOAuthRoutes);
+app.use('/api/v1/billing', billingRoutes);
+app.use('/api/v1/whatsapp', whatsappRoutes);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -59,6 +76,9 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 app.listen(config.port, '0.0.0.0', () => {
   console.log(`🚀 CRM-LEAD Backend running on http://0.0.0.0:${config.port}`);
   console.log(`📁 Audio recordings directory: ${config.recordingsDir}`);
+
+  // Restore active WhatsApp Linked Device sessions
+  restoreActiveWhatsAppSessions().catch(console.error);
 });
 
 export default app;

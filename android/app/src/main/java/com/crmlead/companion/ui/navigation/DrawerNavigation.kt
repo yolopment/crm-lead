@@ -5,12 +5,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -18,6 +21,9 @@ import com.crmlead.companion.ui.screens.*
 
 enum class AppNavScreen {
     CALLS,
+    LEADS,
+    FOLLOW_UPS,
+    WHATSAPP,
     ANALYTICS,
     SIM_CALLING,
     PERMISSIONS,
@@ -50,35 +56,46 @@ fun LeadZamDrawerContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(26.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(BrandBlue),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("✓", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.Phone,
+                            contentDescription = "Logo",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Leadzam",
-                        fontSize = 20.sp,
+                        text = "Lead CRM",
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark
+                        color = TextDark,
+                        letterSpacing = (-0.5).sp
                     )
                 }
 
                 Text(
                     text = "v1.7.54",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
                     color = TextSubtle
                 )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // User Profile Section
+            // User Profile Card
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFF8FAFC))
+                    .padding(12.dp)
             ) {
                 val initials = userName.split(" ")
                     .mapNotNull { it.firstOrNull()?.toString() }
@@ -88,7 +105,7 @@ fun LeadZamDrawerContent(
 
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(Color(0xFFEFF6FF)),
                     contentAlignment = Alignment.Center
@@ -97,38 +114,38 @@ fun LeadZamDrawerContent(
                         text = initials,
                         fontWeight = FontWeight.Bold,
                         color = BrandBlue,
-                        fontSize = 16.sp
+                        fontSize = 14.sp
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
                         text = userName,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         color = TextDark
                     )
                     Text(
-                        text = "Admin · $orgName",
-                        fontSize = 12.sp,
+                        text = "Agent · $orgName",
+                        fontSize = 11.sp,
                         color = TextSubtle,
                         maxLines = 1
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Tracking Calls Status Pill
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onNavigate(AppNavScreen.PERMISSIONS) },
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFDCFCE7))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -141,60 +158,81 @@ fun LeadZamDrawerContent(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Tracking calls",
+                            text = "Live call monitoring active",
                             color = Color(0xFF166534),
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         )
                     }
-                    Text("›", color = Color(0xFF166534), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF166534), modifier = Modifier.size(16.dp))
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Main Nav Items
+            // Main Navigation Items
             DrawerNavItem(
-                icon = "📞",
+                icon = Icons.Default.Phone,
                 label = "Calls",
                 isSelected = currentScreen == AppNavScreen.CALLS,
                 onClick = { onNavigate(AppNavScreen.CALLS) }
             )
 
             DrawerNavItem(
-                icon = "📈",
+                icon = Icons.Default.People,
+                label = "All Leads",
+                isSelected = currentScreen == AppNavScreen.LEADS,
+                onClick = { onNavigate(AppNavScreen.LEADS) }
+            )
+
+            DrawerNavItem(
+                icon = Icons.Default.Schedule,
+                label = "Follow-ups",
+                isSelected = currentScreen == AppNavScreen.FOLLOW_UPS,
+                onClick = { onNavigate(AppNavScreen.FOLLOW_UPS) }
+            )
+
+            DrawerNavItem(
+                icon = Icons.Default.Chat,
+                label = "WhatsApp",
+                isSelected = currentScreen == AppNavScreen.WHATSAPP,
+                onClick = { onNavigate(AppNavScreen.WHATSAPP) }
+            )
+
+            DrawerNavItem(
+                icon = Icons.Default.QueryStats,
                 label = "Analytics",
                 isSelected = currentScreen == AppNavScreen.ANALYTICS,
                 onClick = { onNavigate(AppNavScreen.ANALYTICS) }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Group: This phone
             Text(
-                text = "This phone",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                text = "THIS DEVICE",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
                 color = TextSubtle,
+                letterSpacing = 1.sp,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
             )
 
             DrawerNavItem(
-                icon = "📱",
-                label = "SIM & calling",
+                icon = Icons.Default.Phone,
+                label = "SIM & Calling",
                 isSelected = currentScreen == AppNavScreen.SIM_CALLING,
                 onClick = { onNavigate(AppNavScreen.SIM_CALLING) }
             )
 
             DrawerNavItem(
-                icon = "🛡️",
-                label = "Permissions",
+                icon = Icons.Default.Lock,
+                label = "Permissions & Health",
                 isSelected = currentScreen == AppNavScreen.PERMISSIONS,
                 onClick = { onNavigate(AppNavScreen.PERMISSIONS) }
             )
 
             DrawerNavItem(
-                icon = "⚙️",
+                icon = Icons.Default.Settings,
                 label = "Settings",
                 isSelected = currentScreen == AppNavScreen.SETTINGS,
                 onClick = { onNavigate(AppNavScreen.SETTINGS) }
@@ -206,11 +244,17 @@ fun LeadZamDrawerContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
                     .clickable { onSignOut() }
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🚪", fontSize = 16.sp)
+                Icon(
+                    imageVector = Icons.Default.ExitToApp,
+                    contentDescription = "Sign out",
+                    tint = BrandRed,
+                    modifier = Modifier.size(18.dp)
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Sign out",
@@ -225,7 +269,7 @@ fun LeadZamDrawerContent(
 
 @Composable
 fun DrawerNavItem(
-    icon: String,
+    icon: ImageVector,
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit
@@ -236,11 +280,16 @@ fun DrawerNavItem(
             .clip(RoundedCornerShape(10.dp))
             .background(if (isSelected) Color(0xFFEFF6FF) else Color.Transparent)
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 11.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(icon, fontSize = 16.sp)
-        Spacer(modifier = Modifier.width(14.dp))
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (isSelected) BrandBlue else TextSubtle,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = label,
             fontSize = 14.sp,
@@ -249,4 +298,3 @@ fun DrawerNavItem(
         )
     }
 }
-

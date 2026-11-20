@@ -17,3 +17,5 @@ uploads/
 *.aab
 .gradle/
 local.properties
+*.jks
+*.keystore

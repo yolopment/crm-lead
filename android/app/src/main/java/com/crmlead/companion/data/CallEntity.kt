@@ -17,5 +17,7 @@ data class CallEntity(
     val audioFilePath: String?,
     val isSynced: Boolean = false,
     val isAudioUploaded: Boolean = false,
-    val serverCallId: String? = null
+    val serverCallId: String? = null,
+    val tags: String? = null,
+    val notes: String? = null
 )

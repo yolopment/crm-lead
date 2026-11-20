@@ -12,10 +12,21 @@ interface User {
   isOnLeave: boolean;
 }
 
-interface Organization {
+export interface Organization {
   id: string;
   name: string;
   slug: string;
+  phone?: string | null;
+  website?: string | null;
+  orgStatus?: 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'DELETED';
+  planTier?: 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+  trialEndsAt?: string | null;
+  maxUsers?: number;
+  maxLeads?: number;
+  storageQuotaBytes?: number | string | bigint;
+  storageUsedBytes?: number | string | bigint;
+  orgStorageDriver?: string;
+  gdriveEmail?: string | null;
 }
 
 interface AuthContextType {

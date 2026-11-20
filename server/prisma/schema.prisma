@@ -35,27 +35,209 @@ enum LeadStage {
   LOST
 }
 
-model Organization {
-  id               String       @id @default(uuid())
-  name             String
-  slug             String       @unique
-  phone            String?
-  website          String?
-  callPolicy       String?      @default("{}")
-  captureScope     String       @default("ALL") // "ALL" or "SAVED_CONTACTS"
-  allowMemberScope Boolean      @default(true)
-  recordCalls      Boolean      @default(true)
-  smartFollowUps   Boolean      @default(false)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+enum FollowUpType {
+  CALL
+  TODO
+  MEETING
+  GENERAL
+}
 
-  users            User[]
-  leads            Lead[]
-  calls            Call[]
-  devices          Device[]
-  invitations      Invitation[]
-  dntList          DoNotTrack[]
-  smsMessages      SmsMessage[]
+enum FollowUpStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum OrgStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  DELETED
+}
+
+enum PlanTier {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+// ==========================================
+// SAAS PLATFORM LAYER
+// ==========================================
+
+model SaasAdmin {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String
+  saasRole      String    @default("SUPER_ADMIN") // SUPER_ADMIN, SUPPORT, BILLING
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model SystemSetting {
+  key         String    @id
+  value       String
+  description String?
+  updatedAt   DateTime  @updatedAt
+}
+
+model MasterStorageAccount {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  name               String?
+  accessToken        String    // Encrypted AES-256
+  refreshToken       String?   // Encrypted AES-256
+  tokenExpiry        DateTime?
+  folderId           String?   // Root folder ID in this account
+  folderUrl          String?
+  totalLimitBytes    BigInt    @default(5497558138880) // Live or default 5 TB
+  totalUsageBytes    BigInt    @default(0)
+  availableBytes     BigInt    @default(5497558138880)
+  status             String    @default("ACTIVE") // ACTIVE, OVERFLOW, FULL, DISABLED
+  priority           Int       @default(1) // 1 = Primary, 2 = Secondary, etc.
+  connectedAt        DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model Plan {
+  id                  String       @id @default(uuid())
+  name                String       @unique   // "Free", "Starter", "Pro", "Enterprise"
+  tier                PlanTier     @unique
+  displayName         String                 // "Starter Plan"
+  description         String?
+  priceMonthly        Int          @default(0)   // Price in smallest currency unit (paise/cents)
+  priceYearly         Int          @default(0)
+  currency            String       @default("INR")
+  maxUsers            Int          @default(3)
+  maxLeads            Int          @default(500)
+  storageQuotaBytes   BigInt       @default(1073741824)  // 1 GB = 1073741824 bytes
+  maxCallsPerMonth    Int          @default(1000)
+  features            String?      @default("{}") // JSON string of feature flags
+  isActive            Boolean      @default(true)
+  sortOrder           Int          @default(0)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  subscriptions       Subscription[]
+}
+
+model Subscription {
+  id                      String       @id @default(uuid())
+  orgId                   String       @unique
+  organization            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  planId                  String
+  plan                    Plan         @relation(fields: [planId], references: [id])
+  status                  String       @default("TRIALING") // TRIALING, ACTIVE, PAST_DUE, CANCELLED, EXPIRED
+  gatewaySubscriptionId   String?      // Razorpay subscription_id or Stripe sub_id
+  gatewayCustomerId       String?      // Razorpay customer_id
+  currentPeriodStart      DateTime
+  currentPeriodEnd        DateTime
+  trialEnd                DateTime?
+  cancelledAt             DateTime?
+  cancelReason            String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  invoices                Invoice[]
+}
+
+model Invoice {
+  id                  String        @id @default(uuid())
+  orgId               String
+  organization        Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  subscriptionId      String?
+  subscription        Subscription? @relation(fields: [subscriptionId], references: [id])
+  invoiceNumber       String        @unique  // INV-2026-001
+  amount              Int                    // Amount in paise/cents
+  tax                 Int           @default(0)
+  totalAmount         Int           @default(0)
+  currency            String        @default("INR")
+  status              String        @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  description         String?
+  gatewayPaymentId    String?       // Razorpay payment_id
+  gatewayInvoiceId    String?       // Razorpay invoice_id
+  paidAt              DateTime?
+  dueDate             DateTime
+  pdfUrl              String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([orgId, status])
+  @@index([status, dueDate])
+}
+
+model StorageUsageLog {
+  id            String       @id @default(uuid())
+  orgId         String
+  organization  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bytesUsed     BigInt
+  bytesQuota    BigInt
+  recordedAt    DateTime     @default(now())
+
+  @@index([orgId, recordedAt])
+}
+
+// ==========================================
+// CLIENT / ORGANIZATION LAYER
+// ==========================================
+
+model Organization {
+  id                      String       @id @default(uuid())
+  name                    String
+  slug                    String       @unique
+  phone                   String?
+  website                 String?
+  callPolicy              String?      @default("{}")
+  captureScope            String       @default("ALL") // "ALL" or "SAVED_CONTACTS"
+  allowMemberScope        Boolean      @default(true)
+  recordCalls             Boolean      @default(true)
+  smartFollowUps          Boolean      @default(false)
+  leadFieldsConfig        String?      // JSON configuration of active custom lead fields
+  leadStagesConfig        String?      // JSON configuration of pipeline stages & lost reasons
+  callDispositionsConfig  String?      // JSON configuration of call outcomes (Connected, Not connected, Archived)
+  productsConfig          String?      // JSON configuration of products & services catalog
+  setupProgress           String?      // JSON configuration of completed setup checklist items
+
+  // SaaS Subscription Fields
+  orgStatus               OrgStatus    @default(TRIAL)
+  planTier                PlanTier     @default(FREE)
+  trialEndsAt             DateTime?
+  maxUsers                Int          @default(3)
+  maxLeads                Int          @default(500)
+  storageQuotaBytes       BigInt       @default(1073741824)   // 1 GB default
+  storageUsedBytes        BigInt       @default(0)
+
+  // Per-Client Google Drive OAuth
+  gdriveAccessToken       String?      // Encrypted OAuth access token
+  gdriveRefreshToken      String?      // Encrypted OAuth refresh token
+  gdriveTokenExpiry       DateTime?    // Token expiration
+  gdriveFolderId          String?      // Root folder ID in client's Drive
+  gdriveEmail             String?      // Connected Google account email
+  gdriveConnectedAt       DateTime?
+  orgStorageDriver        String       @default("local") // "local" | "gdrive_oauth" | "r2"
+
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  users                   User[]
+  leads                   Lead[]
+  calls                   Call[]
+  devices                 Device[]
+  invitations             Invitation[]
+  dntList                 DoNotTrack[]
+  smsMessages             SmsMessage[]
+  forms                   Form[]
+  integrations            Integration[]
+  followUps               FollowUp[]
+  subscription            Subscription?
+  invoices                Invoice[]
+  storageUsageLogs        StorageUsageLog[]
+  whatsAppSession         WhatsAppSession?
+  whatsAppMessages        WhatsAppMessage[]
 }
 
 model User {
@@ -80,6 +262,7 @@ model User {
   notes          Note[]
   privateNumbers PrivateNumber[]
   smsMessages    SmsMessage[]
+  followUps      FollowUp[]
 }
 
 model Lead {
@@ -90,18 +273,32 @@ model Lead {
   assignedTo     User?         @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
   fullName       String?
   phone          String
+  alternatePhone String?
   email          String?
-  source         String        @default("manual") // meta_ads, google_ads, website, inbound_call
+  company        String?
+  jobTitle       String?
+  country        String?
+  state          String?
+  city           String?
+  streetAddress  String?
+  streetAddress2 String?
+  postalCode     String?
+  source         String        @default("manual") // meta_ads, google_ads, website, inbound_call, referral, walk_in, cold_call, event, social_media, other
   campaignName   String?
   adName         String?
   stage          LeadStage     @default(NEW)
+  stageName      String?       @default("Fresh") // Custom pipeline stage name e.g. "Attempting Call", "Connected", "Interested", "Meeting Scheduled", "Won", "Lost"
+  lostReason     String?       // Reason if moved to Lost
   tags           String?       // JSON string or comma-separated e.g. "hot,callback"
+  customFields   String?       // JSON string for dynamic CRM fields (UTM parameters, Ad IDs, custom properties)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
   calls          Call[]
   notes          Note[]
   smsMessages    SmsMessage[]
+  followUps      FollowUp[]
+  whatsAppMessages WhatsAppMessage[]
 
   @@index([orgId, phone])
 }
@@ -122,6 +319,7 @@ model Call {
   endedAt        DateTime?
   audioPath      String?       // Local file path on Hostinger VPS or S3 key
   audioSize      Int?          // File size in bytes
+  gdriveUrl      String?       // Direct Google Drive shareable link
   notes          String?
   tags           String?       // e.g. "hot,followup"
   deviceId       String?
@@ -223,4 +421,96 @@ model SmsMessage {
   @@index([orgId, timestamp])
 }
 
+model Form {
+  id               String       @id @default(uuid())
+  orgId            String
+  organization     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name             String
+  slug             String
+  status           String       @default("ACTIVE") // ACTIVE, DRAFT, PAUSED
+  description      String?
+  formCode         String?      @default("F-1")
+  fieldsJson       String       @default("[]")
+  sectionsCount    Int          @default(1)
+  submissionsCount Int          @default(0)
+  settingsJson     String?      @default("{}")
+  customizeJson    String?      @default("{}")
+  createdByName    String?      @default("Aftab Sk")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
+  @@unique([orgId, slug])
+  @@index([orgId, status])
+}
+
+model Integration {
+  id           String       @id @default(uuid())
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  provider     String       // meta_lead_ads, google_sheets, google_ads, indiamart, custom_api, zapier, make, frappe
+  name         String
+  status       String       @default("DISCONNECTED") // CONNECTED, DISCONNECTED, ERROR
+  configJson   String?      @default("{}")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([orgId, provider])
+}
+
+model FollowUp {
+  id            String         @id @default(uuid())
+  orgId         String
+  organization  Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId        String
+  lead          Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedToId  String
+  assignedTo    User           @relation(fields: [assignedToId], references: [id], onDelete: Cascade)
+  type          FollowUpType   @default(CALL)
+  title         String
+  note          String?
+  scheduledAt   DateTime
+  completedAt   DateTime?
+  status        FollowUpStatus @default(PENDING)
+  priority      String         @default("NORMAL")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([orgId, assignedToId, status, scheduledAt])
+  @@index([leadId])
+}
+
+model WhatsAppSession {
+  id              String       @id @default(uuid())
+  orgId           String       @unique
+  organization    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  phoneNumber     String?
+  pushName        String?
+  status          String       @default("DISCONNECTED") // DISCONNECTED, SCAN_QR, CONNECTING, CONNECTED
+  qrCode          String?      // Data URL of the QR code
+  lastConnectedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model WhatsAppMessage {
+  id            String       @id @default(uuid())
+  orgId         String
+  organization  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  remoteJid     String       // e.g. 919002797427@s.whatsapp.net
+  senderPhone   String       // 919002797427
+  senderName    String?
+  fromMe        Boolean      @default(false)
+  body          String
+  mediaUrl      String?
+  mediaType     String?      // text, image, document, audio, video
+  status        String       @default("SENT") // PENDING, SENT, DELIVERED, READ, RECEIVED
+  timestamp     DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+
+  @@index([orgId, remoteJid])
+  @@index([orgId, senderPhone])
+  @@index([leadId])
+  @@index([timestamp])
+}

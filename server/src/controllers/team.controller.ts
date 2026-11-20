@@ -88,6 +88,7 @@ export class TeamController {
 
       const formattedInvites = invitations.map((inv) => ({
         id: inv.id,
+        token: inv.token,
         email: inv.email,
         role: inv.role === 'ADMIN' ? 'Admin' : 'Caller',
         expiresFormatted: `expires ${new Date(inv.expiresAt).toLocaleDateString('en-GB')}`,
@@ -285,6 +286,88 @@ export class TeamController {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to generate pairing token.' });
+    }
+  }
+
+  /**
+   * Update team member details (name, phone, role, password)
+   */
+  static async updateMember(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const orgId = req.user!.orgId;
+      const { name, phone, role, password } = req.body;
+
+      const user = await prisma.user.findFirst({
+        where: { id, orgId },
+      });
+
+      if (!user) {
+        res.status(404).json({ error: 'Team member not found.' });
+        return;
+      }
+
+      const updateData: any = {};
+      if (name) updateData.name = name.trim();
+      if (phone !== undefined) updateData.phone = phone.trim();
+      if (role) {
+        updateData.role = role === 'ADMIN' ? Role.ADMIN : role === 'MANAGER' ? Role.MANAGER : Role.AGENT;
+      }
+      if (password && password.trim()) {
+        updateData.password = await bcrypt.hash(password.trim(), 10);
+      }
+
+      const updated = await prisma.user.update({
+        where: { id },
+        data: updateData,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          isOnLeave: true,
+          deviceToken: true,
+          createdAt: true,
+        },
+      });
+
+      res.status(200).json({ message: 'Team member updated.', member: updated });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to update team member.' });
+    }
+  }
+
+  /**
+   * Delete / remove a team member from the organization
+   */
+  static async deleteMember(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const orgId = req.user!.orgId;
+      const currentUserId = req.user!.id;
+
+      if (id === currentUserId) {
+        res.status(400).json({ error: 'You cannot delete your own account from the team.' });
+        return;
+      }
+
+      const user = await prisma.user.findFirst({
+        where: { id, orgId },
+      });
+
+      if (!user) {
+        res.status(404).json({ error: 'Team member not found.' });
+        return;
+      }
+
+      await prisma.user.delete({
+        where: { id },
+      });
+
+      res.status(200).json({ message: `Team member ${user.name} removed successfully.` });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to delete team member.' });
     }
   }
 }

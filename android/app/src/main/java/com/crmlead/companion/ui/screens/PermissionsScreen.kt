@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +65,7 @@ fun PermissionsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
-                        Text("≡", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = ScreenBackground)
@@ -95,7 +98,7 @@ fun PermissionsScreen(
                             .background(BrandGreen),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("✓", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(

@@ -185,4 +185,113 @@ export class AuthController {
       res.status(500).json({ error: error.message || 'Failed to update leave status.' });
     }
   }
+
+  static async getInviteDetails(req: Request, res: Response): Promise<void> {
+    try {
+      const { token } = req.params;
+      const invite = await prisma.invitation.findFirst({
+        where: {
+          OR: [{ token }, { id: token }],
+        },
+        include: { org: { select: { id: true, name: true } } },
+      });
+
+      if (!invite) {
+        res.status(404).json({ error: 'Invitation not found or has been revoked.' });
+        return;
+      }
+
+      if (new Date(invite.expiresAt) < new Date()) {
+        res.status(410).json({ error: 'This invitation link has expired. Please ask your administrator to resend it.' });
+        return;
+      }
+
+      res.status(200).json({
+        email: invite.email,
+        role: invite.role,
+        organizationName: invite.org.name,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to verify invite.' });
+    }
+  }
+
+  static async acceptInvite(req: Request, res: Response): Promise<void> {
+    try {
+      const { token, name, password, phone } = req.body;
+
+      if (!token || !name || !password) {
+        res.status(400).json({ error: 'Token, name, and password are required.' });
+        return;
+      }
+
+      const invite = await prisma.invitation.findFirst({
+        where: {
+          OR: [{ token }, { id: token }],
+        },
+        include: { org: true },
+      });
+
+      if (!invite) {
+        res.status(404).json({ error: 'Invitation link is invalid or already used.' });
+        return;
+      }
+
+      if (new Date(invite.expiresAt) < new Date()) {
+        res.status(410).json({ error: 'Invitation link has expired.' });
+        return;
+      }
+
+      const existingUser = await prisma.user.findUnique({ where: { email: invite.email } });
+      if (existingUser) {
+        res.status(409).json({ error: 'An account with this email address already exists.' });
+        return;
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const crypto = await import('crypto');
+      const pairingToken = crypto.randomBytes(16).toString('hex');
+
+      const user = await prisma.user.create({
+        data: {
+          orgId: invite.orgId,
+          name,
+          email: invite.email,
+          password: hashedPassword,
+          phone,
+          role: invite.role,
+          deviceToken: pairingToken,
+        },
+      });
+
+      // Delete the used invitation
+      await prisma.invitation.delete({
+        where: { id: invite.id },
+      });
+
+      const authToken = jwt.sign(
+        { userId: user.id, orgId: invite.orgId },
+        config.jwtSecret,
+        { expiresIn: config.jwtExpiresIn as any }
+      );
+
+      res.status(201).json({
+        message: 'Welcome! You have joined the workspace.',
+        token: authToken,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          deviceToken: pairingToken,
+        },
+        organization: {
+          id: invite.org.id,
+          name: invite.org.name,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to accept invitation.' });
+    }
+  }
 }

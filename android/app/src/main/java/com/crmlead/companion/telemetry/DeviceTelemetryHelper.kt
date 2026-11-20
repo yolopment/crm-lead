@@ -41,32 +41,30 @@ object DeviceTelemetryHelper {
         var batteryPct = -1
         var isCharging = false
         try {
-            val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
-            if (bm != null) {
-                val cap = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-                if (cap in 0..100) {
-                    batteryPct = cap
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    isCharging = bm.isCharging
-                }
-            }
-
             val iFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
             val batteryStatus = context.registerReceiver(null, iFilter)
             if (batteryStatus != null) {
-                if (batteryPct < 0) {
-                    val level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                    val scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                    if (level >= 0 && scale > 0) {
-                        batteryPct = ((level.toFloat() / scale.toFloat()) * 100).toInt()
-                    }
+                val level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                if (level >= 0 && scale > 0) {
+                    batteryPct = ((level.toFloat() / scale.toFloat()) * 100).toInt()
                 }
+
                 val status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-                isCharging = isCharging || status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
                 val plugged = batteryStatus.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
-                if (plugged > 0) {
-                    isCharging = true
+                isCharging = (plugged > 0) || (status == BatteryManager.BATTERY_STATUS_CHARGING)
+            }
+
+            if (batteryPct < 0) {
+                val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+                if (bm != null) {
+                    val cap = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                    if (cap in 0..100) {
+                        batteryPct = cap
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        isCharging = bm.isCharging
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -105,7 +103,7 @@ object DeviceTelemetryHelper {
             Log.w(TAG, "Error resolving network info: ${e.message}")
         }
 
-        // 3. Permissions Diagnostics (Call Log, Contacts, Storage, Battery Opt, SMS)
+        // 3. Permissions Diagnostics (Call Log, Contacts, Storage, Battery Opt)
         val hasCallLog = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_CALL_LOG
@@ -114,11 +112,6 @@ object DeviceTelemetryHelper {
         val hasContacts = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_CONTACTS
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val hasSms = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.READ_SMS
         ) == PackageManager.PERMISSION_GRANTED
 
         val hasStorage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -157,7 +150,6 @@ object DeviceTelemetryHelper {
             put("storageAccess", hasStorage)
             put("callLogAccess", hasCallLog)
             put("contactsAccess", hasContacts)
-            put("smsAccess", hasSms)
             put("batteryOptimized", batteryOptimized)
             put("recordingFolder", "Recordings/Call")
             put("recordingsWorking", true)

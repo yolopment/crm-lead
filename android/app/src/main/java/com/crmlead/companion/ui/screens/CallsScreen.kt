@@ -5,6 +5,7 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +13,25 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CallMade
+import androidx.compose.material.icons.filled.CallMissed
+import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.PhoneCallback
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,10 +39,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.crmlead.companion.data.CallEntity
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -31,19 +51,38 @@ import java.util.*
 fun CallsScreen(
     callsList: List<CallEntity>,
     serverUrl: String,
+    token: String,
     userName: String,
     onOpenDrawer: () -> Unit,
     onCheckNewRecordings: () -> Unit,
     onRetrySync: () -> Unit,
-    onChangeWifiIp: () -> Unit
+    onChangeWifiIp: () -> Unit,
+    onOpenLead: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    var selectedCallForDetail by remember { mutableStateOf<CallEntity?>(null) }
     var selectedTab by remember { mutableStateOf(0) } // 0 = My calls, 1 = Team
     var showMenu by remember { mutableStateOf(false) }
+    var showRepsSheet by remember { mutableStateOf(false) }
+    var selectedRepFilter by remember { mutableStateOf("All reps") }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
     var playingAudioCallId by remember { mutableStateOf<Long?>(null) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+
+    if (selectedCallForDetail != null) {
+        CallDetailScreen(
+            call = selectedCallForDetail!!,
+            serverUrl = serverUrl,
+            token = token,
+            onBack = { selectedCallForDetail = null },
+            onOpenLead = onOpenLead,
+            onOutcomeSaved = { updated ->
+                selectedCallForDetail = updated
+            }
+        )
+        return
+    }
 
     // Audio Playback cleanup
     DisposableEffect(Unit) {
@@ -97,18 +136,25 @@ fun CallsScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search phone number...", fontSize = 14.sp) },
+                            placeholder = { Text("Search phone number or contact...", fontSize = 14.sp) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(8.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(10.dp)
                         )
                     } else {
-                        Text("Calls", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
+                        Text(
+                            text = "Calls",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = TextDark
+                        )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
-                        Text("≡", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
                     }
                 },
                 actions = {
@@ -116,11 +162,15 @@ fun CallsScreen(
                         isSearchActive = !isSearchActive
                         if (!isSearchActive) searchQuery = ""
                     }) {
-                        Text(if (isSearchActive) "✕" else "🔍", fontSize = 16.sp)
+                        Icon(
+                            imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = TextDark
+                        )
                     }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Text("⋮", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = TextDark)
                         }
                         DropdownMenu(
                             expanded = showMenu,
@@ -163,12 +213,14 @@ fun CallsScreen(
                 .padding(horizontal = 16.dp)
         ) {
             // Segmented Tab Selector (My calls | Team)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFE2E8F0))
+                    .padding(3.dp)
             ) {
-                Row(modifier = Modifier.padding(4.dp)) {
+                Row(modifier = Modifier.fillMaxWidth()) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -182,7 +234,7 @@ fun CallsScreen(
                             text = "My calls",
                             fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
                             color = if (selectedTab == 0) BrandBlue else TextSubtle,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                     }
                     Box(
@@ -198,7 +250,7 @@ fun CallsScreen(
                             text = "Team",
                             fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
                             color = if (selectedTab == 1) BrandBlue else TextSubtle,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                     }
                 }
@@ -206,22 +258,22 @@ fun CallsScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Subtitle Caption
+            // Subtitle Caption matching Images 6 & 7
             Text(
-                text = if (selectedTab == 0) "Calls on this phone" else "Saved in LeadZam · a call shows after the rep's phone uploads it",
+                text = if (selectedTab == 0) "Calls on this device · captured & synchronized" else "Saved in Lead CRM · a call shows after the rep's phone uploads it",
                 fontSize = 12.sp,
                 color = TextSubtle,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             if (selectedTab == 0) {
                 // Trial Status Banner
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF).copy(alpha = 0.6f)),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
                     border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFBFDBFE)))
                 ) {
                     Row(
@@ -230,17 +282,27 @@ fun CallsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🕒", fontSize = 16.sp)
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = BrandBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("14 days left in your trial", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = TextDark)
+                            Text(
+                                text = "14 days left in your trial",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = TextDark
+                            )
                         }
                         OutlinedButton(
-                            onClick = { Toast.makeText(context, "Contact support: yolopment@gmail.com", Toast.LENGTH_SHORT).show() },
+                            onClick = { Toast.makeText(context, "Contact support: support@yolopment.com", Toast.LENGTH_SHORT).show() },
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                            modifier = Modifier.height(30.dp)
+                            modifier = Modifier.height(28.dp)
                         ) {
-                            Text("Contact us", fontSize = 11.sp, color = TextDark)
+                            Text("Contact us", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -250,28 +312,31 @@ fun CallsScreen(
                 // Summary Card (My calls)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Summary", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
-                            Box(
+                            Text("Summary", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                            Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(Color(0xFFF1F5F9))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Today ⌄", fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                                Text("Today", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -279,54 +344,57 @@ fun CallsScreen(
                         ) {
                             Column {
                                 Text("Calls", fontSize = 12.sp, color = TextSubtle)
-                                Text(todayCount.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(todayCount.toString(), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
+                            }
+                            Column {
+                                Text("Connect rate", fontSize = 12.sp, color = TextSubtle)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("$todayConnectRate%", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                             Column {
                                 Text("Talk time", fontSize = 12.sp, color = TextSubtle)
-                                Text(formattedTalkTime, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
-                            }
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BrandGreen))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Recorded", fontSize = 12.sp, color = TextSubtle)
-                                }
-                                Text(todayRecordedCount.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(if (todayTalkTimeSec < 60) "${todayTalkTimeSec}s" else formattedTalkTime, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                         }
                     }
                 }
             } else {
-                // Summary Card (Team Tab)
+                // Summary Card (Team Tab matching Images 6 & 7)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Summary", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
-                            Box(
+                            Text("Summary", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                            Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(Color(0xFFF1F5F9))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Today ⌄", fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                                Text("Today", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
                             text = "Your team made $todayCount calls and connected on $todayConnected — a $todayConnectRate% connect rate.",
                             fontSize = 13.sp,
-                            color = TextMuted
+                            color = TextDark,
+                            lineHeight = 18.sp
                         )
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -337,22 +405,25 @@ fun CallsScreen(
                         ) {
                             Column {
                                 Text("Calls", fontSize = 12.sp, color = TextSubtle)
-                                Text(todayCount.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(todayCount.toString(), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                             Column {
                                 Text("Connect rate", fontSize = 12.sp, color = TextSubtle)
-                                Text("$todayConnectRate%", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("$todayConnectRate%", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                             Column {
                                 Text("Talk time", fontSize = 12.sp, color = TextSubtle)
-                                Text(formattedTalkTime, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(if (todayTalkTimeSec < 60) "${todayTalkTimeSec}s" else formattedTalkTime, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Filter button row
             Row(
@@ -360,19 +431,36 @@ fun CallsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
+                Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFFF1F5F9))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .clickable { showRepsSheet = true }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (selectedTab == 0) "≡ Filter" else "👥 All reps ⌄", fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                    if (selectedTab == 0) {
+                        Icon(Icons.Default.FilterList, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(selectedRepFilter, fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                    } else {
+                        Icon(Icons.Default.Group, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(selectedRepFilter, fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
+                    }
                 }
 
-                Text("${filteredCalls.size} calls", fontSize = 12.sp, color = TextSubtle)
+                Text(
+                    text = "${filteredCalls.size} calls",
+                    fontSize = 12.sp,
+                    color = TextSubtle,
+                    fontWeight = FontWeight.Medium
+                )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Calls List
             if (filteredCalls.isEmpty()) {
@@ -383,152 +471,147 @@ fun CallsScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📞", fontSize = 36.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("No calls logged yet", fontWeight = FontWeight.SemiBold, color = TextSubtle)
-                        Text("Calls made or received will sync here", fontSize = 12.sp, color = TextSubtle)
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF1F5F9)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PhoneCallback,
+                                contentDescription = null,
+                                tint = TextSubtle,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("No calls logged yet", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("Calls made or received will sync here automatically", fontSize = 12.sp, color = TextSubtle)
                     }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
                     items(filteredCalls) { call ->
                         val hasAudio = !call.audioFilePath.isNullOrEmpty()
                         val isPlaying = playingAudioCallId == call.id
 
+                        val isInbound = call.direction.equals("INBOUND", ignoreCase = true)
+                        val isMissed = call.status.equals("MISSED", ignoreCase = true)
+
+                        val avatarBg = when {
+                            isMissed -> Color(0xFFFEF2F2)
+                            isInbound -> Color(0xFFECFDF5)
+                            else -> Color(0xFFEFF6FF)
+                        }
+                        val iconColor = when {
+                            isMissed -> BrandRed
+                            isInbound -> BrandGreen
+                            else -> BrandBlue
+                        }
+                        val directionIcon = when {
+                            isMissed -> Icons.Default.CallMissed
+                            isInbound -> Icons.Default.CallReceived
+                            else -> Icons.Default.CallMade
+                        }
+
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    if (hasAudio) {
-                                        if (isPlaying) {
-                                            mediaPlayer?.stop()
-                                            mediaPlayer?.release()
-                                            mediaPlayer = null
-                                            playingAudioCallId = null
-                                        } else {
-                                            try {
-                                                mediaPlayer?.release()
-                                                mediaPlayer = MediaPlayer().apply {
-                                                    setDataSource(call.audioFilePath)
-                                                    prepare()
-                                                    start()
-                                                    setOnCompletionListener {
-                                                        playingAudioCallId = null
-                                                    }
-                                                }
-                                                playingAudioCallId = call.id
-                                                Toast.makeText(context, "Playing call audio...", Toast.LENGTH_SHORT).show()
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "Unable to play audio: ${e.message}", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    }
-                                },
+                                .clickable { selectedCallForDetail = call },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = CardBackground),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(14.dp),
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (selectedTab == 0) {
-                                    // My calls avatar (# with direction badge)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFF1F5F9)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("#", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextSubtle)
-                                    }
-                                } else {
-                                    // Team tab avatar (AS)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFF3E8FF)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("AS", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF7E22CE))
-                                    }
+                                // Initials Avatar matching Images 6 & 7
+                                val displayName = if (!call.contactName.isNullOrBlank()) call.contactName else call.phoneNumber
+                                val initials = displayName
+                                    .split(" ")
+                                    .mapNotNull { it.firstOrNull()?.toString() }
+                                    .take(2)
+                                    .joinToString("")
+                                    .ifEmpty { "AS" }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFEFF6FF)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = initials.uppercase(),
+                                        color = BrandBlue,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
                                 }
 
                                 Spacer(modifier = Modifier.width(12.dp))
 
+                                // Contact Info & Meta matching Images 6 & 7
                                 Column(modifier = Modifier.weight(1f)) {
-                                    val displayName = if (!call.contactName.isNullOrBlank()) call.contactName else call.phoneNumber
                                     Text(
-                                        text = displayName,
+                                        text = displayName.uppercase(),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,
-                                        color = if (call.status == "MISSED") BrandRed else TextDark
+                                        color = TextDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                    if (!call.contactName.isNullOrBlank()) {
-                                        Text(
-                                            text = call.phoneNumber,
-                                            fontSize = 11.sp,
-                                            color = TextSubtle,
-                                            fontWeight = FontWeight.Normal
-                                        )
-                                    }
-                                    if (selectedTab == 1) {
-                                        Text(
-                                            text = "By $userName",
-                                            fontSize = 12.sp,
-                                            color = TextSubtle
-                                        )
-                                    }
-                                    val timeStr = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(call.startedAt))
-                                    val durStr = if (call.durationSec > 0) "${call.durationSec}s · " else ""
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
                                     Text(
-                                        text = "${call.direction.lowercase().capitalize(Locale.ROOT)} · $durStr$timeStr",
+                                        text = "By ${userName.ifBlank { "Aftab Sk" }}",
                                         fontSize = 12.sp,
-                                        color = if (call.status == "MISSED") BrandRed else TextSubtle
+                                        color = TextSubtle
+                                    )
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    val dateFormatted = SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()).format(Date(call.startedAt))
+                                    val dirStr = call.direction.lowercase().replaceFirstChar { it.uppercase() }
+                                    val durationStr = if (call.status == "CONNECTED" && call.durationSec > 0) "${call.durationSec}s" else "Not connected"
+
+                                    Text(
+                                        text = "$dirStr · $durationStr · $dateFormatted",
+                                        fontSize = 12.sp,
+                                        color = TextSubtle
                                     )
                                 }
 
-                                // Right Action: Green Waveform if recorded, or Phone icon
-                                if (hasAudio) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = if (isPlaying) "⏸️" else "|||",
-                                            color = BrandGreen,
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 16.sp
+                                // Right Action: Waveform icon + ChevronRight matching Screenshots 1 & 2
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(start = 6.dp)
+                                ) {
+                                    if (hasAudio) {
+                                        Icon(
+                                            imageVector = Icons.Default.GraphicEq,
+                                            contentDescription = "Audio Recorded",
+                                            tint = Color(0xFF16A34A),
+                                            modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("›", fontSize = 16.sp, color = TextSubtle)
                                     }
-                                } else {
-                                    IconButton(
-                                        onClick = {
-                                            try {
-                                                val intent = Intent(Intent.ACTION_DIAL).apply {
-                                                    data = Uri.parse("tel:${call.phoneNumber}")
-                                                }
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "Dialer unavailable", Toast.LENGTH_SHORT).show()
-                                            }
-                                        },
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFEFF6FF))
-                                    ) {
-                                        Text("📞", fontSize = 14.sp)
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "Open Call Detail",
+                                        tint = TextSubtle,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         }
@@ -537,5 +620,75 @@ fun CallsScreen(
             }
         }
     }
-}
 
+    // "Show calls by · 1" Rep Bottom Sheet matching Screenshot 1
+    if (showRepsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showRepsSheet = false },
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = "Show calls by · 1",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Option: All reps
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            selectedRepFilter = "All reps"
+                            showRepsSheet = false
+                        }
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "All reps",
+                        fontSize = 15.sp,
+                        fontWeight = if (selectedRepFilter == "All reps") FontWeight.Bold else FontWeight.Medium,
+                        color = TextDark
+                    )
+                    if (selectedRepFilter == "All reps") {
+                        Icon(Icons.Default.Check, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                HorizontalDivider(color = BorderLight)
+
+                // Option: Current User Rep
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            selectedRepFilter = userName
+                            showRepsSheet = false
+                        }
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = userName,
+                        fontSize = 15.sp,
+                        fontWeight = if (selectedRepFilter == userName) FontWeight.Bold else FontWeight.Medium,
+                        color = TextDark
+                    )
+                    if (selectedRepFilter == userName) {
+                        Icon(Icons.Default.Check, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}

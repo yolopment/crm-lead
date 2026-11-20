@@ -1,35 +1,110 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, Users, Download, ChevronDown, Phone, Mail, Tag, X, Loader2, Edit2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
+import {
+  Search,
+  Plus,
+  Users,
+  Download,
+  ChevronDown,
+  Phone,
+  Mail,
+  Tag,
+  X,
+  Loader2,
+  Edit2,
+  MessageCircle,
+  Smartphone,
+  ChevronRight,
+  ChevronLeft,
+  Calendar,
+  Building,
+  Briefcase,
+  MapPin,
+  Clock,
+  Play,
+  Pause,
+  Volume2,
+  Trash2,
+  RefreshCw,
+  FileCheck,
+  CheckCircle2,
+  Upload,
+  Filter,
+  CheckSquare,
+  FileText,
+  Send,
+  ExternalLink,
+} from 'lucide-react';
 import { fetchWithAuth } from '@/lib/api';
 import { Toast, Badge, TableRowSkeleton } from '@/components/ui';
 
 const STAGES = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL_SENT', 'WON', 'LOST'] as const;
-type Stage = typeof STAGES[number];
+type Stage = (typeof STAGES)[number];
 
-const STAGE_COLORS: Record<Stage, 'slate' | 'blue' | 'green' | 'yellow' | 'green' | 'red'> = {
-  NEW: 'slate', CONTACTED: 'blue', QUALIFIED: 'green', PROPOSAL_SENT: 'yellow', WON: 'green', LOST: 'red',
+const STAGE_COLORS: Record<Stage, { badge: string; dot: string; label: string }> = {
+  NEW: { badge: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-400', label: 'Fresh' },
+  CONTACTED: { badge: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', label: 'Contacted' },
+  QUALIFIED: { badge: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500', label: 'Qualified' },
+  PROPOSAL_SENT: { badge: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500', label: 'Proposal' },
+  WON: { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', label: 'Won' },
+  LOST: { badge: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500', label: 'Lost' },
 };
-const STAGE_LABELS: Record<Stage, string> = {
-  NEW: 'New', CONTACTED: 'Contacted', QUALIFIED: 'Qualified', PROPOSAL_SENT: 'Proposal Sent', WON: 'Won', LOST: 'Lost',
-};
+
+const LEAD_SOURCES = [
+  'Website',
+  'Referral',
+  'Cold Call',
+  'Walk-in',
+  'Event',
+  'Social Media',
+  'Meta Lead Ads',
+  'Google Ads',
+  'Other',
+];
 
 interface Lead {
   id: string;
   fullName: string | null;
   phone: string;
+  alternatePhone?: string | null;
   email: string | null;
+  company?: string | null;
+  jobTitle?: string | null;
+  country?: string | null;
+  state?: string | null;
+  city?: string | null;
+  streetAddress?: string | null;
+  streetAddress2?: string | null;
+  postalCode?: string | null;
   source: string;
   campaignName: string | null;
   stage: Stage;
+  stageName?: string | null;
   tags: string | null;
   createdAt: string;
   assignedTo: { id: string; name: string; email: string } | null;
-  _count: { calls: number; notes: number };
+  _count?: { calls?: number; notes?: number; followUps?: number };
+  calls?: any[];
+}
+
+interface TimelineEvent {
+  id: string;
+  type: 'lead_created' | 'call_logged' | 'note_added' | 'stage_changed' | 'payment';
+  title: string;
+  subtitle?: string;
+  content?: string;
+  author: string;
+  platform?: string;
+  audioPath?: string;
+  callId?: string;
+  tags?: string;
+  timestamp: string;
 }
 
 export default function LeadsPage() {
+  const searchParams = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [team, setTeam] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,14 +113,60 @@ export default function LeadsPage() {
   const [agentFilter, setAgentFilter] = useState('all');
   const [total, setTotal] = useState(0);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] = useState({ fullName: '', phone: '', email: '', source: 'manual', tags: '' });
-  const [createLoading, setCreateLoading] = useState(false);
-  const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
-  const [editLead, setEditLead] = useState<Lead | null>(null);
-  const [editForm, setEditForm] = useState({ fullName: '', phone: '', email: '', tags: '' });
-  const [editLoading, setEditLoading] = useState(false);
 
+  // Modals & Drawers
+  const [showAddDrawer, setShowAddDrawer] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [detailTimeline, setDetailTimeline] = useState<TimelineEvent[]>([]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [hideEmptyDetails, setHideEmptyDetails] = useState(false);
+  const [detailTab, setDetailTab] = useState<'activity' | 'calls' | 'workflow' | 'tasks' | 'revenue'>('activity');
+  const [activityFilter, setActivityFilter] = useState('all');
+
+  // Quick Action form states inside drawer
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+
+  // Follow-up scheduling modal inside drawer
+  const [showFollowupModal, setShowFollowupModal] = useState(false);
+  const [leadFollowups, setLeadFollowups] = useState<any[]>([]);
+  const [followupForm, setFollowupForm] = useState({
+    type: 'CALL' as 'CALL' | 'TODO' | 'MEETING',
+    title: 'Follow-up Call',
+    scheduledAt: '',
+    note: '',
+    priority: 'NORMAL',
+  });
+  const [savingFollowup, setSavingFollowup] = useState(false);
+
+  // Single Add Lead Form
+  const [addForm, setAddForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    source: 'Website',
+    assignedToId: '',
+    company: '',
+    jobTitle: '',
+  });
+  const [addingLead, setAddingLead] = useState(false);
+
+  // Bulk Upload state
+  const [bulkText, setBulkText] = useState('');
+  const [bulkUploading, setBulkUploading] = useState(false);
+
+  // Quick WhatsApp Send Modal state
+  const [quickWhatsAppLead, setQuickWhatsAppLead] = useState<Lead | null>(null);
+  const [quickWhatsAppMessage, setQuickWhatsAppMessage] = useState('');
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+
+  // Audio Player in Activity
+  const [playingCallId, setPlayingCallId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Load leads list
   const loadLeads = useCallback(async () => {
     setLoading(true);
     try {
@@ -61,7 +182,7 @@ export default function LeadsPage() {
       ]);
       setLeads(leadsData?.leads || []);
       setTotal(leadsData?.pagination?.total || 0);
-      const members = Array.isArray(teamData) ? teamData : (teamData?.members || []);
+      const members = Array.isArray(teamData) ? teamData : teamData?.members || [];
       setTeam(members);
     } catch (err: any) {
       setToast({ message: err.message, type: 'error' });
@@ -70,294 +191,623 @@ export default function LeadsPage() {
     }
   }, [search, stageFilter, agentFilter]);
 
-  useEffect(() => { loadLeads(); }, [loadLeads]);
+  useEffect(() => {
+    loadLeads();
+  }, [loadLeads]);
+
+  // Handle URL action parameters (e.g. ?action=add-single)
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'add-single') setShowAddDrawer(true);
+    if (action === 'bulk-upload') setShowBulkModal(true);
+  }, [searchParams]);
+
+  const openQuickWhatsApp = (lead: Lead) => {
+    setQuickWhatsAppLead(lead);
+    const name = lead.fullName || 'there';
+    setQuickWhatsAppMessage(`Hi ${name}, thank you for contacting us! How can we help you today?`);
+  };
+
+  const handleSendQuickWhatsApp = async () => {
+    if (!quickWhatsAppLead || !quickWhatsAppMessage.trim()) return;
+    try {
+      setSendingWhatsApp(true);
+      await fetchWithAuth('/whatsapp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          toPhone: quickWhatsAppLead.phone,
+          message: quickWhatsAppMessage.trim(),
+          leadId: quickWhatsAppLead.id,
+        }),
+      });
+      setToast({ message: `WhatsApp message sent to ${quickWhatsAppLead.fullName || quickWhatsAppLead.phone}!`, type: 'success' });
+      setQuickWhatsAppLead(null);
+    } catch (err: any) {
+      // If not connected, offer option to open WhatsApp Web
+      if (err.message?.includes('not connected')) {
+        setToast({ message: 'WhatsApp is not linked. Please scan QR in the WhatsApp tab first, or use WhatsApp Web link.', type: 'error' });
+      } else {
+        setToast({ message: err.message || 'Failed to send WhatsApp message', type: 'error' });
+      }
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
+  // Load Lead Detail for Slide-Over Drawer
+  const openLeadDetail = async (lead: Lead) => {
+    setSelectedLead(lead);
+    setLoadingDetail(true);
+    setShowNoteInput(false);
+    try {
+      const [data, followupsData] = await Promise.all([
+        fetchWithAuth(`/leads/${lead.id}`),
+        fetchWithAuth(`/followups?search=${encodeURIComponent(lead.phone)}&status=open`),
+      ]);
+      if (data?.lead) {
+        setSelectedLead(data.lead);
+        setDetailTimeline(data.timeline || []);
+      }
+      if (followupsData?.items) {
+        setLeadFollowups(followupsData.items);
+      }
+    } catch (err: any) {
+      setToast({ message: 'Failed to load lead timeline', type: 'error' });
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   const updateStage = async (leadId: string, stage: Stage) => {
-    setUpdatingLeadId(leadId);
     try {
-      await fetchWithAuth(`/leads/${leadId}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) });
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage } : l));
+      await fetchWithAuth(`/leads/${leadId}/stage`, {
+        method: 'PATCH',
+        body: JSON.stringify({ stage }),
+      });
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage } : l)));
+      if (selectedLead && selectedLead.id === leadId) {
+        setSelectedLead({ ...selectedLead, stage });
+      }
       setToast({ message: 'Lead stage updated', type: 'success' });
     } catch (err: any) {
       setToast({ message: err.message, type: 'error' });
-    } finally {
-      setUpdatingLeadId(null);
     }
   };
 
-  const handleSaveLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editLead) return;
-    setEditLoading(true);
+  const updateOwner = async (leadId: string, assignedToId: string) => {
     try {
-      const updated = await fetchWithAuth(`/leads/${editLead.id}`, {
+      const updated = await fetchWithAuth(`/leads/${leadId}`, {
         method: 'PATCH',
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({ assignedToId }),
       });
-      setLeads(prev => prev.map(l => l.id === editLead.id ? { ...l, ...updated } : l));
-      setToast({ message: 'Lead updated successfully!', type: 'success' });
-      setEditLead(null);
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updated } : l)));
+      if (selectedLead && selectedLead.id === leadId) {
+        setSelectedLead({ ...selectedLead, ...updated });
+      }
+      setToast({ message: 'Lead owner updated', type: 'success' });
     } catch (err: any) {
       setToast({ message: err.message, type: 'error' });
-    } finally {
-      setEditLoading(false);
     }
   };
 
-  const createLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!createForm.phone) return;
-    setCreateLoading(true);
+  // Remote Call Web-to-Phone
+  const triggerRemoteDial = async (phoneNumber: string, name?: string | null) => {
+    if (!phoneNumber) {
+      setToast({ message: 'Lead has no phone number to dial', type: 'error' });
+      return;
+    }
     try {
-      await fetchWithAuth('/leads', { method: 'POST', body: JSON.stringify(createForm) });
-      setShowCreateModal(false);
-      setCreateForm({ fullName: '', phone: '', email: '', source: 'manual', tags: '' });
-      setToast({ message: 'Lead created & assigned to available agent', type: 'success' });
+      await fetchWithAuth('/calls/dial-request', {
+        method: 'POST',
+        body: JSON.stringify({
+          phoneNumber,
+          targetUserId: selectedLead?.assignedTo?.id,
+        }),
+      });
+      setToast({
+        message: `📞 Dial command sent to your phone for ${name || phoneNumber}!`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Unable to trigger remote call.', type: 'error' });
+    }
+  };
+
+  // Create Single Lead
+  const handleAddLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addForm.phone) return;
+    setAddingLead(true);
+    try {
+      await fetchWithAuth('/leads', {
+        method: 'POST',
+        body: JSON.stringify(addForm),
+      });
+      setShowAddDrawer(false);
+      setAddForm({ fullName: '', email: '', phone: '', source: 'Website', assignedToId: '', company: '', jobTitle: '' });
+      setToast({ message: 'Lead created successfully!', type: 'success' });
       loadLeads();
     } catch (err: any) {
       setToast({ message: err.message, type: 'error' });
     } finally {
-      setCreateLoading(false);
+      setAddingLead(false);
     }
   };
 
-  const exportCSV = () => {
-    const headers = ['Name', 'Phone', 'Email', 'Source', 'Stage', 'Campaign', 'Tags', 'Assigned To', 'Calls', 'Created'];
-    const rows = leads.map(l => [
-      l.fullName || '', l.phone, l.email || '', l.source, l.stage,
-      l.campaignName || '', l.tags || '', l.assignedTo?.name || '',
-      l._count.calls, new Date(l.createdAt).toLocaleDateString('en-IN'),
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `leads-${Date.now()}.csv`;
-    a.click();
+  // Bulk Upload (CSV / Lines)
+  const handleBulkUpload = async () => {
+    if (!bulkText.trim()) return;
+    setBulkUploading(true);
+    try {
+      const lines = bulkText.split('\n').filter(Boolean);
+      const items = lines.map((line) => {
+        const parts = line.split(',').map((p) => p.trim());
+        return {
+          fullName: parts[0] || null,
+          phone: parts[1] || parts[0] || '',
+          email: parts[2] || null,
+          company: parts[3] || null,
+        };
+      });
+
+      const res = await fetchWithAuth('/leads/bulk-upload', {
+        method: 'POST',
+        body: JSON.stringify({ leads: items }),
+      });
+      if (res?.count) {
+        setToast({ message: `Imported ${res.count} leads successfully!`, type: 'success' });
+        setShowBulkModal(false);
+        setBulkText('');
+        loadLeads();
+      }
+    } catch (err: any) {
+      setToast({ message: err.message || 'Bulk upload failed', type: 'error' });
+    } finally {
+      setBulkUploading(false);
+    }
   };
 
-  // Stage counts for summary cards
-  const stageCounts = STAGES.reduce((acc, s) => ({ ...acc, [s]: leads.filter(l => l.stage === s).length }), {} as Record<Stage, number>);
+  // Add Note to Selected Lead
+  const handleAddNote = async () => {
+    if (!noteText.trim() || !selectedLead) return;
+    setSavingNote(true);
+    try {
+      const res = await fetchWithAuth(`/leads/${selectedLead.id}/notes`, {
+        method: 'POST',
+        body: JSON.stringify({ content: noteText }),
+      });
+      setNoteText('');
+      setShowNoteInput(false);
+      setToast({ message: 'Note saved!', type: 'success' });
+      openLeadDetail(selectedLead);
+    } catch (err: any) {
+      setToast({ message: 'Failed to add note', type: 'error' });
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  // Open Follow-up Modal for Selected Lead
+  const openFollowupForLead = (defaultType: 'CALL' | 'TODO' | 'MEETING' = 'CALL') => {
+    if (!selectedLead) return;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(10, 0, 0, 0);
+    const localIso = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+
+    setFollowupForm({
+      type: defaultType,
+      title:
+        defaultType === 'CALL'
+          ? `Follow-up call with ${selectedLead.fullName || 'Lead'}`
+          : defaultType === 'TODO'
+          ? `To-Do for ${selectedLead.fullName || 'Lead'}`
+          : `Meeting with ${selectedLead.fullName || 'Lead'}`,
+      scheduledAt: localIso,
+      note: '',
+      priority: 'NORMAL',
+    });
+    setShowFollowupModal(true);
+  };
+
+  // Save Follow-up for Selected Lead
+  const handleSaveFollowup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead) return;
+    setSavingFollowup(true);
+    try {
+      await fetchWithAuth('/followups', {
+        method: 'POST',
+        body: JSON.stringify({
+          leadId: selectedLead.id,
+          ...followupForm,
+        }),
+      });
+      setToast({ message: 'Follow-up scheduled successfully!', type: 'success' });
+      setShowFollowupModal(false);
+      openLeadDetail(selectedLead);
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to schedule follow-up', type: 'error' });
+    } finally {
+      setSavingFollowup(false);
+    }
+  };
+
+  // Complete a Follow-up from within Lead Drawer
+  const handleCompleteLeadFollowup = async (followupId: string) => {
+    try {
+      await fetchWithAuth(`/followups/${followupId}/complete`, { method: 'PATCH' });
+      setToast({ message: 'Task marked as completed!', type: 'success' });
+      if (selectedLead) openLeadDetail(selectedLead);
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to complete task', type: 'error' });
+    }
+  };
+
+  // Audio Playback Handler
+  const togglePlayAudio = (callId: string, audioPath?: string) => {
+    if (playingCallId === callId) {
+      audioRef.current?.pause();
+      setPlayingCallId(null);
+    } else {
+      if (audioRef.current) {
+        audioRef.current.src = `/api/v1/calls/${callId}/audio`;
+        audioRef.current.play();
+        setPlayingCallId(callId);
+      }
+    }
+  };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <audio ref={audioRef} onEnded={() => setPlayingCallId(null)} className="hidden" />
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Leads</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {loading ? '...' : `${total} leads total`} · distributed via round-robin to available agents
-          </p>
+      {/* Top Header Bar matching Screenshot 4 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-bold text-slate-900">All Leads</h1>
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
+              {total}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50">
-            <Download className="w-3.5 h-3.5" /><span>Export</span>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setShowBulkModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-xs transition"
+          >
+            <Upload className="w-3.5 h-3.5 text-slate-500" />
+            <span>Bulk Upload</span>
           </button>
-          <button onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 shadow-sm">
-            <Plus className="w-3.5 h-3.5" /><span>Add Lead</span>
+
+          <button
+            onClick={() => setShowAddDrawer(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Lead</span>
           </button>
         </div>
       </div>
 
-      {/* Stage Pipeline Summary Cards */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-        {STAGES.map(stage => (
-          <button key={stage} onClick={() => setStageFilter(stageFilter === stage ? 'all' : stage)}
-            className={`bg-white border rounded-xl p-3 text-center shadow-sm hover:shadow transition cursor-pointer ${
-              stageFilter === stage ? 'border-blue-400 ring-1 ring-blue-400' : 'border-slate-200'
-            }`}>
-            <div className="text-xl font-extrabold text-slate-900">{loading ? '·' : stageCounts[stage]}</div>
-            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mt-1">{STAGE_LABELS[stage]}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[260px]">
+      {/* Search & Action Filters Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="relative flex-1 min-w-[280px]">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-          <input type="text" placeholder="Search by name, phone, email..." value={search}
-            onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && loadLeads()}
-            className="w-full pl-9 pr-4 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search name, email, company, phone or lead ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && loadLeads()}
+            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white placeholder:text-slate-400 transition"
+          />
         </div>
 
-        <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
-          className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="all">All Stages</option>
-          {STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          {/* Stage Filter */}
+          <select
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value="all">All Stages</option>
+            {STAGES.map((s) => (
+              <option key={s} value={s}>
+                {STAGE_COLORS[s].label}
+              </option>
+            ))}
+          </select>
 
-        <select value={agentFilter} onChange={e => setAgentFilter(e.target.value)}
-          className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="all">All Agents</option>
-          {(Array.isArray(team) ? team : []).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
+          {/* Refresh Button */}
+          <button
+            onClick={loadLeads}
+            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+          </button>
+        </div>
       </div>
 
-      {/* Leads Table */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto" role="region" aria-labelledby="leads-table-caption" tabIndex={0}>
-          <table className="w-full text-left text-sm">
-            <caption id="leads-table-caption" className="sr-only">Lead management table</caption>
-            <thead className="bg-slate-50/75 text-[11px] font-bold uppercase text-slate-500 border-b border-slate-100">
-              <tr>
-                <th scope="col" className="py-3 px-6">Lead</th>
-                <th scope="col" className="py-3 px-6">Source</th>
-                <th scope="col" className="py-3 px-6">Stage</th>
-                <th scope="col" className="py-3 px-6">Assigned To</th>
-                <th scope="col" className="py-3 px-6">Tags</th>
-                <th scope="col" className="py-3 px-6">Calls</th>
-                <th scope="col" className="py-3 px-6">Created</th>
+      {/* All Leads Table matching Screenshot 4 */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                <th className="py-3 px-4 w-10">
+                  <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
+                </th>
+                <th className="py-3 px-4">Name ⇅</th>
+                <th className="py-3 px-4">Lead Owner ⇅</th>
+                <th className="py-3 px-4">Email</th>
+                <th className="py-3 px-4">Phone</th>
+                <th className="py-3 px-4">Stage ⇅</th>
+                <th className="py-3 px-4">Lead Source</th>
+                <th className="py-3 px-4">Created ↓</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
+
             <tbody className="divide-y divide-slate-100">
-              {loading
-                ? [1,2,3,4,5].map(i => <TableRowSkeleton key={i} cols={7} />)
-                : leads.length === 0
-                ? (
-                  <tr>
-                    <td colSpan={7} className="py-16 text-center">
-                      <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                      <p className="text-sm text-slate-400 font-medium">No leads found</p>
-                      <p className="text-xs text-slate-300 mt-1">Create a lead manually or connect Meta Ads webhook</p>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={9} className="py-4 px-4">
+                      <div className="h-4 bg-slate-100 rounded-md w-full" />
                     </td>
                   </tr>
-                ) : leads.map(lead => (
-                  <tr key={lead.id} className="hover:bg-slate-50/50 transition">
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <div className="font-semibold text-slate-900">{lead.fullName || 'Unknown'}</div>
-                        <button
-                          onClick={() => {
-                            setEditLead(lead);
-                            setEditForm({
-                              fullName: lead.fullName || '',
-                              phone: lead.phone,
-                              email: lead.email || '',
-                              tags: lead.tags || '',
-                            });
-                          }}
-                          className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition"
-                          title="Edit Lead Details"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                        <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{lead.phone}</span>
-                        {lead.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{lead.email}</span>}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-xs capitalize text-slate-600 font-medium bg-slate-100 px-2 py-0.5 rounded">
-                        {lead.source.replace('_', ' ')}
-                      </span>
-                      {lead.campaignName && (
-                        <div className="text-[10px] text-slate-400 mt-1 max-w-[120px] truncate">{lead.campaignName}</div>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="relative inline-block">
-                        <select
-                          value={lead.stage}
-                          onChange={e => updateStage(lead.id, e.target.value as Stage)}
-                          disabled={updatingLeadId === lead.id}
-                          className="appearance-none pr-6 pl-2 py-1 rounded-lg text-xs font-semibold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 bg-white"
-                        >
-                          {STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
-                        </select>
-                        {updatingLeadId === lead.id
-                          ? <Loader2 className="w-3 h-3 absolute right-1.5 top-1.5 animate-spin text-slate-400" />
-                          : <ChevronDown className="w-3 h-3 absolute right-1.5 top-1.5 text-slate-400 pointer-events-none" />
-                        }
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      {lead.assignedTo ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
-                            {lead.assignedTo.name.split(' ').map((n: string) => n[0]).slice(0,2).join('')}
+                ))
+              ) : leads.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                    <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-600">No leads found</p>
+                    <p className="text-[11px] mt-0.5">Add a lead or upload a CSV to get started.</p>
+                  </td>
+                </tr>
+              ) : (
+                leads.map((lead) => {
+                  const stageInfo = STAGE_COLORS[lead.stage] || STAGE_COLORS.NEW;
+                  return (
+                    <tr
+                      key={lead.id}
+                      onClick={() => openLeadDetail(lead)}
+                      className="hover:bg-slate-50/80 cursor-pointer transition select-none group"
+                    >
+                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
+                      </td>
+
+                      <td className="py-3.5 px-4 font-bold text-slate-900 group-hover:text-blue-600 transition">
+                        {lead.fullName || 'Unnamed Lead'}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        {lead.assignedTo ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
+                              {lead.assignedTo.name[0]}
+                            </div>
+                            <span className="font-medium text-slate-700">{lead.assignedTo.name}</span>
                           </div>
-                          <span className="text-xs font-medium text-slate-700">{lead.assignedTo.name}</span>
+                        ) : (
+                          <span className="text-slate-400 italic">Unassigned</span>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-slate-600 font-mono text-[11px]">
+                        {lead.email || '—'}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-slate-800 font-mono text-[11px] font-semibold">
+                        {lead.phone}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${stageInfo.badge}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${stageInfo.dot}`} />
+                          <span>{stageInfo.label}</span>
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-slate-600 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{lead.source}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                        {new Date(lead.createdAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => triggerRemoteDial(lead.phone, lead.fullName)}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[11px] font-semibold transition"
+                            title="Call on Phone"
+                          >
+                            <Smartphone className="w-3 h-3 text-blue-600" />
+                            <span>Call</span>
+                          </button>
+
+                          <button
+                            onClick={() => openQuickWhatsApp(lead)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-[11px] font-semibold transition"
+                            title="Send WhatsApp from CRM"
+                          >
+                            <MessageCircle className="w-3 h-3 text-emerald-600" />
+                            <span>WhatsApp</span>
+                          </button>
                         </div>
-                      ) : (
-                        <span className="text-xs text-slate-400">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex flex-wrap gap-1">
-                        {lead.tags?.split(',').filter(Boolean).map(tag => (
-                          <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{tag.trim()}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-sm font-semibold text-slate-700">{lead._count.calls}</span>
-                      <span className="text-xs text-slate-400 ml-1">calls</span>
-                    </td>
-                    <td className="py-4 px-6 text-xs text-slate-500">
-                      {new Date(lead.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Footer Pagination */}
+        <div className="py-3 px-6 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span>
+            Showing 1-{leads.length} of {total} leads
+          </span>
+          <div className="flex items-center gap-2">
+            <button className="px-2.5 py-1 rounded-lg border border-slate-200 disabled:opacity-40" disabled>
+              ‹ Prev
+            </button>
+            <span className="font-semibold text-slate-700">Page 1 of 1</span>
+            <button className="px-2.5 py-1 rounded-lg border border-slate-200 disabled:opacity-40" disabled>
+              Next ›
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Create Lead Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
+      {/* ─── SLIDE-OVER DRAWER 1: ADD SINGLE LEAD matching Screenshot 3 ─── */}
+      {showAddDrawer && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex justify-end">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-slate-900">Create New Lead</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Will be auto-assigned to next available agent</p>
+                <h2 className="text-base font-bold text-slate-900">+ Add Lead</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Add a lead directly to your CRM. No form submission required.
+                </p>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setShowAddDrawer(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={createLead} className="space-y-4">
-              {[
-                { label: 'Full Name', name: 'fullName', type: 'text', placeholder: 'Rahul Sharma', required: false },
-                { label: 'Phone Number *', name: 'phone', type: 'tel', placeholder: '+919XXXXXXXXX', required: true },
-                { label: 'Email', name: 'email', type: 'email', placeholder: 'rahul@email.com', required: false },
-                { label: 'Tags', name: 'tags', type: 'text', placeholder: 'hot, interested, callback', required: false },
-              ].map(field => (
-                <div key={field.name}>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">{field.label}</label>
-                  <input type={field.type} required={field.required}
-                    value={(createForm as any)[field.name]}
-                    onChange={e => setCreateForm({ ...createForm, [field.name]: e.target.value })}
-                    placeholder={field.placeholder}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              ))}
+            <form onSubmit={handleAddLead} className="p-5 flex-1 overflow-y-auto space-y-4">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Fields</div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Source</label>
-                <select value={createForm.source} onChange={e => setCreateForm({ ...createForm, source: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="manual">Manual Entry</option>
-                  <option value="meta_ads">Meta / Facebook Ads</option>
-                  <option value="google_ads">Google Ads</option>
-                  <option value="website">Website / Landing Page</option>
-                  <option value="inbound_call">Inbound Call</option>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="Lead's full name (extracted from form fields)"
+                  value={addForm.fullName}
+                  onChange={(e) => setAddForm({ ...addForm, fullName: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Email</label>
+                <input
+                  type="email"
+                  placeholder="Primary contact email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Phone *</label>
+                <div className="flex gap-2">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-2 border border-slate-200 bg-slate-50 rounded-xl text-xs font-medium text-slate-600">
+                    🇮🇳 +91
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="Primary contact phone"
+                    value={addForm.phone}
+                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                    className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Lead Source</label>
+                <select
+                  value={addForm.source}
+                  onChange={(e) => setAddForm({ ...addForm, source: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  {LEAD_SOURCES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button type="submit" disabled={createLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5">
-                  {createLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {createLoading ? 'Creating...' : 'Create Lead'}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Assign to (optional)</label>
+                <select
+                  value={addForm.assignedToId}
+                  onChange={(e) => setAddForm({ ...addForm, assignedToId: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="">Auto-assign round robin</option>
+                  {team.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Company</label>
+                  <input
+                    type="text"
+                    placeholder="Acme Inc."
+                    value={addForm.company}
+                    onChange={(e) => setAddForm({ ...addForm, company: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Job Title</label>
+                  <input
+                    type="text"
+                    placeholder="Managing Director"
+                    value={addForm.jobTitle}
+                    onChange={(e) => setAddForm({ ...addForm, jobTitle: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAddDrawer(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingLead}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+                >
+                  {addingLead && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>+ Add Lead</span>
                 </button>
               </div>
             </form>
@@ -365,88 +815,627 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Edit Lead Modal */}
-      {editLead && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditLead(null)}>
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="font-bold text-slate-900">Edit Lead</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Update saved name, phone or contact details</p>
-              </div>
-              <button onClick={() => setEditLead(null)} className="text-slate-400 hover:text-slate-700">
+      {/* ─── MODAL: BULK UPLOAD (CSV / XLSX) ─── */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 border border-slate-200 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Bulk Upload Leads</h3>
+              <button onClick={() => setShowBulkModal(false)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveLead} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={editForm.fullName}
-                  onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
-                  placeholder="e.g. Rahul Sharma"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            <div className="mt-4 space-y-4">
+              <p className="text-xs text-slate-500">
+                Paste your CSV lines or contacts below (Format: <code>Name, Phone, Email, Company</code>):
+              </p>
+              <textarea
+                rows={6}
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                placeholder="Rahul Sharma, 9876543210, rahul@example.com, Tata Group&#10;Priya Sen, 8765432109, priya@gmail.com, Infosys"
+                className="w-full p-3 text-xs font-mono border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  value={editForm.phone}
-                  onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                  placeholder="+919XXXXXXXXX"
-                  required
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={editForm.email}
-                  onChange={e => setEditForm({ ...editForm, email: e.target.value })}
-                  placeholder="rahul@example.com"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Tags</label>
-                <input
-                  type="text"
-                  value={editForm.tags}
-                  onChange={e => setEditForm({ ...editForm, tags: e.target.value })}
-                  placeholder="hot, interested, VIP"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex items-center justify-end gap-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={() => setEditLead(null)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  onClick={() => setShowBulkModal(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkUpload}
+                  disabled={bulkUploading || !bulkText.trim()}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {bulkUploading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Import Leads</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── SLIDE-OVER DRAWER 2: LEAD DETAIL INSPECTION PANEL matching Screenshot 5 ─── */}
+      {selectedLead && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex justify-end">
+          <div className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+            {/* Top Toolbar matching Screenshot 5 */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <button className="p-1 rounded text-slate-400 hover:text-slate-700">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button className="p-1 rounded text-slate-400 hover:text-slate-700">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => openLeadDetail(selectedLead)}
+                  className="text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingDetail ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+
+                <button
+                  onClick={async () => {
+                    if (confirm('Delete this lead?')) {
+                      await fetchWithAuth(`/leads/${selectedLead.id}`, { method: 'DELETE' });
+                      setSelectedLead(null);
+                      loadLeads();
+                      setToast({ message: 'Lead deleted', type: 'info' });
+                    }
+                  }}
+                  className="text-xs font-medium text-rose-600 hover:text-rose-700 flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedLead(null)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Lead Name & Status Header */}
+            <div className="p-6 border-b border-slate-100 bg-white">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">{selectedLead.fullName || 'Unnamed Lead'}</h2>
+
+                  {/* Stage & Owner Pickers */}
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {/* Stage Dropdown */}
+                    <div className="relative">
+                      <select
+                        value={selectedLead.stage}
+                        onChange={(e) => updateStage(selectedLead.id, e.target.value as Stage)}
+                        className={`appearance-none pl-3 pr-7 py-1 rounded-full text-xs font-bold border cursor-pointer focus:outline-none ${
+                          STAGE_COLORS[selectedLead.stage]?.badge || 'bg-slate-100'
+                        }`}
+                      >
+                        {STAGES.map((s) => (
+                          <option key={s} value={s}>
+                            ● {STAGE_COLORS[s].label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-3 h-3 absolute right-2 top-2 pointer-events-none opacity-60" />
+                    </div>
+
+                    {/* Owner Dropdown */}
+                    <div className="relative">
+                      <select
+                        value={selectedLead.assignedTo?.id || ''}
+                        onChange={(e) => updateOwner(selectedLead.id, e.target.value)}
+                        className="appearance-none pl-3 pr-7 py-1 rounded-full text-xs font-semibold bg-slate-50 border border-slate-200 text-slate-700 cursor-pointer focus:outline-none"
+                      >
+                        <option value="">Unassigned</option>
+                        {team.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-3 h-3 absolute right-2 top-2 pointer-events-none text-slate-400" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* KPI counter badges matching Screenshot 10 */}
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={() => openFollowupForLead('CALL')}
+                    className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold flex items-center gap-1 transition"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Follow-up</span>
+                  </button>
+
+                  <button
+                    onClick={() => setDetailTab('calls')}
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition"
+                  >
+                    <Phone className="w-3 h-3 text-slate-500" />
+                    <span>{(selectedLead._count?.calls ?? selectedLead.calls?.length ?? 0)} calls</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Collapsible LEAD DETAILS Card */}
+              <div className="mt-5 p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>Lead Details</span>
+                  <button
+                    onClick={() => setHideEmptyDetails(!hideEmptyDetails)}
+                    className="text-blue-600 hover:underline capitalize font-semibold"
+                  >
+                    {hideEmptyDetails ? 'Show all' : 'Hide empty'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Phone</span>
+                    <span className="font-bold text-slate-800 font-mono">🇮🇳 {selectedLead.phone}</span>
+                  </div>
+
+                  {(!hideEmptyDetails || selectedLead.email) && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Email</span>
+                      <span className="font-medium text-slate-700 font-mono">{selectedLead.email || '—'}</span>
+                    </div>
+                  )}
+
+                  {(!hideEmptyDetails || selectedLead.company) && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Company</span>
+                      <span className="font-medium text-slate-700">{selectedLead.company || '—'}</span>
+                    </div>
+                  )}
+
+                  {(!hideEmptyDetails || selectedLead.jobTitle) && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Job Title</span>
+                      <span className="font-medium text-slate-700">{selectedLead.jobTitle || '—'}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Lead Source</span>
+                    <span className="font-semibold text-slate-700">{selectedLead.source}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Subtabs matching Screenshot 5 (Activity, Calls, Workflow, Tasks, Revenue) */}
+            <div className="border-b border-slate-200 px-6 flex items-center gap-6 text-xs font-bold text-slate-500 bg-white">
+              {(['activity', 'calls', 'tasks'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setDetailTab(tab)}
+                  className={`py-3 capitalize transition-all border-b-2 ${
+                    detailTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent hover:text-slate-800'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Body: Activity Timeline or Tasks */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 space-y-4">
+              {showNoteInput && (
+                <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm space-y-2 animate-in fade-in">
+                  <h4 className="text-xs font-bold text-slate-800">Add a note for this lead</h4>
+                  <textarea
+                    rows={3}
+                    placeholder="E.g. Discussed proposal, follow up tomorrow at 3pm..."
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    className="w-full p-2.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowNoteInput(false)}
+                      className="px-3 py-1.5 text-xs text-slate-600 font-semibold hover:bg-slate-50 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddNote}
+                      disabled={savingNote}
+                      className="px-3.5 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700"
+                    >
+                      {savingNote ? 'Saving...' : 'Save Note'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {detailTab === 'tasks' ? (
+                /* Tasks Tab matching Screenshot 10 */
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Scheduled Tasks & Follow-ups</h4>
+                    <button
+                      onClick={() => openFollowupForLead('TODO')}
+                      className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Task</span>
+                    </button>
+                  </div>
+
+                  {leadFollowups.length === 0 ? (
+                    <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-xs">
+                      No pending tasks or follow-ups for this lead.
+                    </div>
+                  ) : (
+                    leadFollowups.map((f: any) => (
+                      <div
+                        key={f.id}
+                        className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleCompleteLeadFollowup(f.id)}
+                            className="w-5 h-5 rounded border border-slate-300 hover:bg-emerald-50 hover:border-emerald-500 text-transparent hover:text-emerald-600 flex items-center justify-center transition"
+                            title="Mark as done"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </button>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-900">{f.title}</span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700">
+                                {f.type}
+                              </span>
+                            </div>
+                            {f.note && <p className="text-[11px] text-slate-500 mt-0.5">{f.note}</p>}
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              Due: {new Date(f.scheduledAt).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleCompleteLeadFollowup(f.id)}
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold"
+                        >
+                          Complete
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : loadingDetail ? (
+                <div className="py-12 flex justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : detailTimeline.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs">No activity logged yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {detailTimeline.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs flex items-start gap-3.5"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                        {item.type === 'call_logged' ? (
+                          <Phone className="w-4 h-4 text-emerald-600" />
+                        ) : item.type === 'note_added' ? (
+                          <FileText className="w-4 h-4 text-blue-600" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 text-slate-600" />
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold text-slate-900">{item.title}</h4>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        {item.subtitle && <p className="text-[11px] text-slate-500 mt-0.5">{item.subtitle}</p>}
+                        {item.content && (
+                          <p className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-2 font-mono">
+                            {item.content}
+                          </p>
+                        )}
+
+                        {/* Call Audio Player */}
+                        {item.type === 'call_logged' && item.callId && (
+                          <div className="mt-2.5 flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/80">
+                            <button
+                              onClick={() => togglePlayAudio(item.callId!)}
+                              className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition"
+                            >
+                              {playingCallId === item.callId ? (
+                                <Pause className="w-3 h-3" />
+                              ) : (
+                                <Play className="w-3 h-3 ml-0.5" />
+                              )}
+                            </button>
+                            <span className="text-[11px] font-semibold text-slate-700">
+                              {playingCallId === item.callId ? 'Playing call recording...' : 'Listen to call recording'}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                          <span>By {item.author}</span>
+                          <span>•</span>
+                          <span>{item.platform || 'System'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Sticky Action Bar matching Screenshot 10 */}
+            <div className="p-3 border-t border-slate-200 bg-white flex items-center justify-around">
+              <button
+                onClick={() => triggerRemoteDial(selectedLead.phone, selectedLead.fullName)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition"
+              >
+                <Smartphone className="w-4 h-4 text-blue-600" />
+                <span>Call on Phone</span>
+              </button>
+
+              <a
+                href={`https://wa.me/${selectedLead.phone.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-xl transition"
+              >
+                <MessageCircle className="w-4 h-4 text-emerald-600" />
+                <span>WhatsApp</span>
+              </a>
+
+              <button
+                onClick={() => setShowNoteInput(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition"
+              >
+                <FileText className="w-4 h-4 text-slate-500" />
+                <span>Note</span>
+              </button>
+
+              <button
+                onClick={() => openFollowupForLead('TODO')}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-purple-600 hover:bg-purple-50 rounded-xl transition"
+              >
+                <CheckSquare className="w-4 h-4 text-purple-500" />
+                <span>To-Do</span>
+              </button>
+
+              <button
+                onClick={() => openFollowupForLead('CALL')}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-amber-600 hover:bg-amber-50 rounded-xl transition"
+              >
+                <Clock className="w-4 h-4 text-amber-500" />
+                <span>Follow-up</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: SCHEDULE FOLLOW-UP / TO-DO FOR SELECTED LEAD ─── */}
+      {showFollowupModal && selectedLead && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-slate-200 animate-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Schedule {followupForm.type}</h3>
+                  <p className="text-[11px] text-slate-500">{selectedLead.fullName || selectedLead.phone}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowFollowupModal(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveFollowup} className="space-y-4">
+              {/* Type Switcher */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['CALL', 'TODO', 'MEETING'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setFollowupForm({ ...followupForm, type: t })}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition text-center ${
+                        followupForm.type === t
+                          ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {t === 'CALL' ? '📞 Call' : t === 'TODO' ? '✓ To-Do' : '🤝 Meeting'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Title / Agenda *</label>
+                <input
+                  type="text"
+                  required
+                  value={followupForm.title}
+                  onChange={(e) => setFollowupForm({ ...followupForm, title: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Scheduled Date */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Scheduled Date & Time *</label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={followupForm.scheduledAt}
+                  onChange={(e) => setFollowupForm({ ...followupForm, scheduledAt: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                />
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Note (Optional)</label>
+                <textarea
+                  rows={2}
+                  value={followupForm.note}
+                  onChange={(e) => setFollowupForm({ ...followupForm, note: e.target.value })}
+                  placeholder="Key talking points or agenda..."
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowFollowupModal(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={editLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5"
+                  disabled={savingFollowup}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
                 >
-                  {editLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {editLoading ? 'Saving...' : 'Save Changes'}
+                  {savingFollowup ? 'Scheduling...' : 'Save Follow-up'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* QUICK WHATSAPP SEND MODAL */}
+      {quickWhatsAppLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <MessageCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Send WhatsApp to {quickWhatsAppLead.fullName || 'Lead'}
+                  </h3>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    {quickWhatsAppLead.phone}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setQuickWhatsAppLead(null)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Templates */}
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                Quick Template:
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  'Introduction & Greeting',
+                  'Pricing Follow-up',
+                  'Demo Scheduling',
+                ].map((tmpl, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      const name = quickWhatsAppLead.fullName || 'there';
+                      if (idx === 0) setQuickWhatsAppMessage(`Hi ${name}, thank you for contacting us! How can we help you today?`);
+                      if (idx === 1) setQuickWhatsAppMessage(`Hello ${name}, following up on our recent phone call. Please let me know if you have any questions about the proposal!`);
+                      if (idx === 2) setQuickWhatsAppMessage(`Hi ${name}, would you be available for a brief 10-minute demo call tomorrow?`);
+                    }}
+                    className="px-2.5 py-1 text-[11px] bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 rounded-lg transition"
+                  >
+                    {tmpl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Message Box */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Message Text</label>
+              <textarea
+                rows={4}
+                value={quickWhatsAppMessage}
+                onChange={(e) => setQuickWhatsAppMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <a
+                href={`https://wa.me/${quickWhatsAppLead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(quickWhatsAppMessage)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-slate-500 hover:text-emerald-600 flex items-center gap-1 font-medium"
+              >
+                <span>Or open in WhatsApp Web</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setQuickWhatsAppLead(null)}
+                  className="px-3.5 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendQuickWhatsApp}
+                  disabled={sendingWhatsApp || !quickWhatsAppMessage.trim()}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5"
+                >
+                  {sendingWhatsApp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  <span>Send WhatsApp</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 }
-

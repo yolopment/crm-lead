@@ -8,6 +8,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.SimCard
+import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -182,7 +186,7 @@ fun SimCallingScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
-                        Text("≡", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = ScreenBackground)
@@ -220,7 +224,12 @@ fun SimCallingScreen(
                             .background(Color(0xFFEFF6FF)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("📶", fontSize = 20.sp)
+                        Icon(
+                            imageVector = Icons.Default.SimCard,
+                            contentDescription = null,
+                            tint = BrandBlue,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
 
                     Spacer(modifier = Modifier.width(14.dp))

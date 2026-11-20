@@ -14,3 +14,4 @@ router.get('/', authenticate, SmsController.listSms);
 router.delete('/:id', authenticate, SmsController.deleteSms);
 
 export default router;
+

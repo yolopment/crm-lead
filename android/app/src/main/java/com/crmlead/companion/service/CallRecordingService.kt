@@ -5,16 +5,27 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.crmlead.companion.R
 import com.crmlead.companion.sync.SyncWorker
 import com.crmlead.companion.telemetry.DeviceTelemetryHelper
 import com.crmlead.companion.ui.MainActivity
 import kotlinx.coroutines.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 
 class CallRecordingService : Service() {
 
@@ -65,6 +76,90 @@ class CallRecordingService : Service() {
             while (isActive) {
                 triggerTelemetrySync()
                 delay(60_000L)
+            }
+        }
+
+        // Persistent background listener for Web-to-Phone remote dialing ("Call on Phone")
+        serviceScope.launch {
+            val httpClient = OkHttpClient()
+            while (isActive) {
+                try {
+                    val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+                    val serverUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, "") ?: ""
+                    val deviceToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
+
+                    if (serverUrl.isNotEmpty() && deviceToken.isNotEmpty()) {
+                        val req = Request.Builder()
+                            .url("${serverUrl.trimEnd('/')}/api/v1/calls/pending-dial")
+                            .header("x-device-token", deviceToken)
+                            .header("Authorization", "Device $deviceToken")
+                            .get()
+                            .build()
+
+                        val resp = try { httpClient.newCall(req).execute() } catch (e: Exception) { null }
+                        if (resp != null && resp.isSuccessful) {
+                            val bodyStr = resp.body?.string() ?: ""
+                            val json = JSONObject(bodyStr)
+                            val pending = json.optJSONObject("pendingDial")
+                            if (pending != null) {
+                                val rawPhone = pending.optString("phoneNumber", "").trim()
+                                val cleanPhone = rawPhone.filter { it.isDigit() || it == '+' }
+                                if (cleanPhone.isNotEmpty()) {
+                                    Log.d(TAG, "⚡ Remote dial request received: $cleanPhone")
+
+                                    // Launch native phone dialer / direct call
+                                    Handler(Looper.getMainLooper()).post {
+                                        Toast.makeText(
+                                            applicationContext,
+                                            "📞 Calling $cleanPhone requested from Web CRM...",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+
+                                        try {
+                                            val hasCallPerm = ContextCompat.checkSelfPermission(
+                                                applicationContext,
+                                                android.Manifest.permission.CALL_PHONE
+                                            ) == PackageManager.PERMISSION_GRANTED
+
+                                            val dialAction = if (hasCallPerm) Intent.ACTION_CALL else Intent.ACTION_DIAL
+                                            val dialIntent = Intent(dialAction, Uri.fromParts("tel", cleanPhone, null)).apply {
+                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                            }
+                                            startActivity(dialIntent)
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "Failed to start dial intent: ${e.message}")
+                                            // Fallback to ACTION_DIAL
+                                            try {
+                                                val fallbackIntent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", cleanPhone, null)).apply {
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                }
+                                                startActivity(fallbackIntent)
+                                            } catch (e2: Exception) {
+                                                Log.e(TAG, "Fallback dial also failed: ${e2.message}")
+                                            }
+                                        }
+                                    }
+
+                                    // Acknowledge completion on server
+                                    try {
+                                        val compReq = Request.Builder()
+                                            .url("${serverUrl.trimEnd('/')}/api/v1/calls/dial-complete")
+                                            .header("x-device-token", deviceToken)
+                                            .header("Authorization", "Device $deviceToken")
+                                            .post("{}".toRequestBody("application/json".toMediaType()))
+                                            .build()
+                                        httpClient.newCall(compReq).execute()
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "Failed to acknowledge dial completion: ${e.message}")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore background network transient errors
+                }
+                delay(2500L)
             }
         }
     }

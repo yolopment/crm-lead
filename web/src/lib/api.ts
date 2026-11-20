@@ -31,7 +31,10 @@ export async function fetchWithAuth(endpoint: string, options: RequestInit = {})
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Request failed: ${res.status}`);
+    const err: any = new Error(errorData.error || `Request failed: ${res.status}`);
+    err.code = errorData.code;
+    err.status = res.status;
+    throw err;
   }
 
   // Handle empty responses (204 No Content)

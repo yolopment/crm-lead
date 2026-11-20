@@ -7,20 +7,30 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "test:r2": "tsx scripts/test-r2.ts",
+    "test:gdrive": "tsx scripts/test-gdrive.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "seed:saas": "tsx scripts/seed-saas.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1172.0",
+    "@aws-sdk/s3-request-presigner": "^3.1172.0",
     "@prisma/client": "^5.22.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
+    "googleapis": "^190.0.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+    "pino": "^10.4.0",
+    "qrcode": "^1.5.4",
+    "razorpay": "^2.9.8",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -31,9 +41,9 @@
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.9.0",
+    "@types/qrcode": "^1.5.6",
     "prisma": "^5.22.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }
-

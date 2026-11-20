@@ -55,6 +55,17 @@ class SyncWorker(
             Log.w(TAG, "Heartbeat telemetry update failed: ${e.message}")
         }
 
+        // Sync and schedule upcoming follow-up alarm notifications
+        try {
+            com.crmlead.companion.notification.FollowupNotificationManager.checkAndSchedulePendingFollowups(
+                applicationContext,
+                serverUrl,
+                deviceToken
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Followup notification sync failed: ${e.message}")
+        }
+
         val db = AppDatabase.getDatabase(applicationContext)
 
         try {
@@ -144,62 +155,6 @@ class SyncWorker(
                 if (uploadResponse.isSuccessful) {
                     db.callDao().updateCall(call.copy(isAudioUploaded = true))
                     Log.d(TAG, "Audio recording successfully uploaded for call: $serverId")
-                }
-            }
-
-            // 3. Scan & Sync SMS Messages
-            try {
-                com.crmlead.companion.importer.SmsLogImporter.importRecentSms(applicationContext, 7)
-            } catch (e: Exception) {
-                // SMS permission might not be granted yet
-            }
-
-            val unsyncedSms = db.smsDao().getUnsyncedSms()
-            if (unsyncedSms.isNotEmpty()) {
-                val smsArray = JSONArray()
-                for (sms in unsyncedSms) {
-                    val smsJson = JSONObject().apply {
-                        put("phoneNumber", sms.address)
-                        if (!sms.contactName.isNullOrBlank()) {
-                            put("contactName", sms.contactName)
-                        }
-                        put("body", sms.body)
-                        put("direction", sms.direction)
-                        put("timestamp", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date(sms.timestamp)))
-                    }
-                    smsArray.put(smsJson)
-                }
-
-                val smsPayload = JSONObject().apply {
-                    put("messages", smsArray)
-                }
-
-                val smsRequest = Request.Builder()
-                    .url("${serverUrl.trimEnd('/')}/api/v1/sms/sync")
-                    .header("x-device-token", deviceToken)
-                    .header("Content-Type", "application/json")
-                    .post(smsPayload.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-
-                val smsResponse = client.newCall(smsRequest).execute()
-                if (smsResponse.isSuccessful) {
-                    val respBody = smsResponse.body?.string() ?: ""
-                    val jsonResp = JSONObject(respBody)
-                    val syncedList = jsonResp.optJSONArray("synced")
-                    if (syncedList != null) {
-                        for (i in 0 until syncedList.length()) {
-                            val item = syncedList.getJSONObject(i)
-                            val sId = item.optString("id", "")
-                            if (i < unsyncedSms.size) {
-                                db.smsDao().updateSms(unsyncedSms[i].copy(isSynced = true, serverSmsId = sId))
-                            }
-                        }
-                    } else {
-                        for (sms in unsyncedSms) {
-                            db.smsDao().updateSms(sms.copy(isSynced = true))
-                        }
-                    }
-                    Log.d(TAG, "Synced ${unsyncedSms.size} SMS messages.")
                 }
             }
 

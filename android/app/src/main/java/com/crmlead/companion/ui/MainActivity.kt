@@ -38,6 +38,7 @@ import com.crmlead.companion.ui.navigation.AppNavScreen
 import com.crmlead.companion.ui.navigation.LeadZamDrawerContent
 import com.crmlead.companion.ui.screens.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -51,6 +52,7 @@ enum class SetupStep {
     SIGN_IN,
     SETUP_OVERVIEW,
     STEP_CALL_TRACKING,
+    STEP_ALLOW_CALLING,
     STEP_NOTIFICATIONS,
     STEP_WORK_SIM,
     SETUP_COMPLETE,
@@ -83,6 +85,15 @@ class MainActivity : ComponentActivity() {
         if (granted) {
             Toast.makeText(this, "Call tracking enabled!", Toast.LENGTH_SHORT).show()
         }
+        currentStep = SetupStep.STEP_ALLOW_CALLING
+    }
+
+    private val callingPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            Toast.makeText(this, "Remote calling enabled!", Toast.LENGTH_SHORT).show()
+        }
         currentStep = SetupStep.STEP_NOTIFICATIONS
     }
 
@@ -109,6 +120,7 @@ class MainActivity : ComponentActivity() {
 
     private var currentStep by mutableStateOf(SetupStep.SIGN_IN)
     private var currentNavScreen by mutableStateOf(AppNavScreen.CALLS)
+    private var targetLeadQuery by mutableStateOf("")
     private var isSigningIn by mutableStateOf(false)
     private var isImporting by mutableStateOf(false)
     private var importStatusText by mutableStateOf("")
@@ -220,6 +232,71 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // Background listener for Web-to-Phone remote calling ("Allow Calling" feature)
+                    LaunchedEffect(currentStep, serverUrlState) {
+                        if (currentStep == SetupStep.MAIN_APP) {
+                            while (true) {
+                                try {
+                                    val devToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
+                                    if (devToken.isNotEmpty() && serverUrlState.isNotEmpty()) {
+                                        val req = Request.Builder()
+                                            .url("${serverUrlState.trimEnd('/')}/api/v1/calls/pending-dial")
+                                            .header("x-device-token", devToken)
+                                            .header("Authorization", "Device $devToken")
+                                            .get()
+                                            .build()
+
+                                        val resp = withContext(Dispatchers.IO) {
+                                            try { httpClient.newCall(req).execute() } catch (e: Exception) { null }
+                                        }
+
+                                        if (resp != null && resp.isSuccessful) {
+                                            val bodyStr = resp.body?.string() ?: ""
+                                            val json = JSONObject(bodyStr)
+                                            val pending = json.optJSONObject("pendingDial")
+                                            if (pending != null) {
+                                                val rawPhone = pending.optString("phoneNumber", "").trim()
+                                                val cleanPhone = rawPhone.filter { it.isDigit() || it == '+' }
+                                                if (cleanPhone.isNotEmpty()) {
+                                                    withContext(Dispatchers.Main) {
+                                                        Toast.makeText(this@MainActivity, "📞 Calling $cleanPhone from Lead CRM web...", Toast.LENGTH_SHORT).show()
+                                                        val hasCallPerm = androidx.core.content.ContextCompat.checkSelfPermission(
+                                                            this@MainActivity,
+                                                            android.Manifest.permission.CALL_PHONE
+                                                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                                        val dialAction = if (hasCallPerm) Intent.ACTION_CALL else Intent.ACTION_DIAL
+                                                        val dialIntent = Intent(dialAction, Uri.fromParts("tel", cleanPhone, null)).apply {
+                                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                        }
+                                                        startActivity(dialIntent)
+                                                    }
+
+                                                    // Mark complete on server
+                                                    withContext(Dispatchers.IO) {
+                                                        try {
+                                                            val compReq = Request.Builder()
+                                                                .url("${serverUrlState.trimEnd('/')}/api/v1/calls/dial-complete")
+                                                                .header("x-device-token", devToken)
+                                                                .header("Authorization", "Device $devToken")
+                                                                .post("{}".toRequestBody("application/json".toMediaType()))
+                                                                .build()
+                                                            httpClient.newCall(compReq).execute()
+                                                        } catch (e: Exception) {
+                                                            e.printStackTrace()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    // Ignore background polling network glitches
+                                }
+                                delay(3500)
+                            }
+                        }
+                    }
+
                     if (currentStep == SetupStep.MAIN_APP) {
                         // FULL MAIN LEADZAM APP WITH NAVIGATION DRAWER
                         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -245,15 +322,51 @@ class MainActivity : ComponentActivity() {
                         ) {
                             when (currentNavScreen) {
                                 AppNavScreen.CALLS -> {
+                                    val devToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
                                     CallsScreen(
                                         callsList = callsList,
                                         serverUrl = serverUrlState,
+                                        token = devToken,
                                         userName = userName,
                                         onOpenDrawer = { scope.launch { drawerState.open() } },
                                         onCheckNewRecordings = { syncRecordingsWithBackend() },
                                         onRetrySync = { triggerManualSync() },
-                                        onChangeWifiIp = { showServerChangeDialog = true }
+                                        onChangeWifiIp = { showServerChangeDialog = true },
+                                        onOpenLead = { leadPhone ->
+                                            targetLeadQuery = leadPhone
+                                            currentNavScreen = AppNavScreen.LEADS
+                                        }
                                     )
+                                }
+                                AppNavScreen.LEADS -> {
+                                    val devToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
+                                    LeadsScreen(
+                                        serverUrl = serverUrlState,
+                                        token = devToken,
+                                        initialSearchQuery = targetLeadQuery,
+                                        onOpenDrawer = { scope.launch { drawerState.open() } }
+                                    )
+                                }
+                                AppNavScreen.FOLLOW_UPS -> {
+                                    val devToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
+                                    FollowupsScreen(
+                                        serverUrl = serverUrlState,
+                                        token = devToken,
+                                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                                        onBrowseLeads = { currentNavScreen = AppNavScreen.LEADS }
+                                    )
+                                }
+                                AppNavScreen.WHATSAPP -> {
+                                    LaunchedEffect(Unit) {
+                                        try {
+                                            val waIntent = packageManager.getLaunchIntentForPackage("com.whatsapp")
+                                                ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com"))
+                                            startActivity(waIntent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(this@MainActivity, "WhatsApp not installed", Toast.LENGTH_SHORT).show()
+                                        }
+                                        currentNavScreen = AppNavScreen.CALLS
+                                    }
                                 }
                                 AppNavScreen.ANALYTICS -> {
                                     AnalyticsScreen(
@@ -328,6 +441,16 @@ class MainActivity : ComponentActivity() {
                                     StepCallTrackingScreen(
                                         onAllow = { requestCallTrackingPermissions() },
                                         onSignOut = { signOut() }
+                                    )
+                                }
+                                SetupStep.STEP_ALLOW_CALLING -> {
+                                    StepAllowCallingScreen(
+                                        onAllow = {
+                                            callingPermissionLauncher.launch(Manifest.permission.CALL_PHONE)
+                                        },
+                                        onLater = {
+                                            currentStep = SetupStep.STEP_NOTIFICATIONS
+                                        }
                                     )
                                 }
                                 SetupStep.STEP_NOTIFICATIONS -> {
@@ -409,9 +532,7 @@ class MainActivity : ComponentActivity() {
     private fun areEssentialPermissionsGranted(): Boolean {
         val hasCallLog = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
         val hasPhoneState = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
-        val hasContacts = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
-        val hasStorage = checkStorageAccess()
-        return hasCallLog && hasPhoneState && hasContacts && hasStorage
+        return hasCallLog && hasPhoneState
     }
 
     private fun checkStorageAccess(): Boolean {
@@ -451,9 +572,7 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.READ_CALL_LOG,
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_CONTACTS,
-            Manifest.permission.READ_SMS,
-            Manifest.permission.RECEIVE_SMS
+            Manifest.permission.READ_CONTACTS
         )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

@@ -7,8 +7,8 @@ import { Phone, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [email, setEmail] = useState('yolopment@gmail.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -20,38 +20,69 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
+      setError(err.message || 'Invalid email or password. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
+      }}
+    >
+      {/* Background texture dots */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)`,
+          backgroundSize: '32px 32px',
+        }}
+      />
+
+      <div className="w-full max-w-[360px] relative z-10">
+        {/* Logo & Brand */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center shadow-xl shadow-blue-900/40 mb-4">
-            <Phone className="w-7 h-7 text-white" />
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 shadow-xl"
+            style={{ background: 'linear-gradient(135deg, #2563eb, #4f46e5)' }}
+          >
+            <Phone className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Lead CRM</h1>
-          <p className="text-sm text-slate-400 mt-1">Call Tracking & Lead Management</p>
+          <h1 className="text-[22px] font-bold text-white tracking-tight">Lead CRM</h1>
+          <p className="text-sm text-white/40 mt-1">Call tracking & lead management</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
-          <h2 className="text-lg font-semibold text-white mb-6">Sign in to your workspace</h2>
+        <div
+          className="rounded-2xl p-7"
+          style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(20px)',
+          }}
+        >
+          <h2 className="text-base font-semibold text-white mb-5">Sign in to your workspace</h2>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            <div
+              className="mb-4 p-3 rounded-lg text-sm"
+              style={{
+                background: 'rgba(220,38,38,0.12)',
+                border: '1px solid rgba(220,38,38,0.25)',
+                color: '#fca5a5',
+              }}
+            >
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
-                Email Address
+              <label className="block text-[11px] font-semibold text-white/50 mb-1.5 uppercase tracking-widest">
+                Email
               </label>
               <input
                 type="email"
@@ -59,12 +90,25 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                autoComplete="email"
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white placeholder:text-white/20 focus:outline-none transition"
+                style={{
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+                onFocus={e => {
+                  e.currentTarget.style.border = '1px solid rgba(99,102,241,0.6)';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.15)';
+                }}
+                onBlur={e => {
+                  e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
+              <label className="block text-[11px] font-semibold text-white/50 mb-1.5 uppercase tracking-widest">
                 Password
               </label>
               <div className="relative">
@@ -74,14 +118,27 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Your password"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12"
+                  autoComplete="current-password"
+                  className="w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm text-white placeholder:text-white/20 focus:outline-none transition"
+                  style={{
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                  }}
+                  onFocus={e => {
+                    e.currentTarget.style.border = '1px solid rgba(99,102,241,0.6)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.15)';
+                  }}
+                  onBlur={e => {
+                    e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -89,12 +146,19 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-sm transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30"
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition flex items-center justify-center gap-2 mt-1"
+              style={{
+                background: isLoading
+                  ? 'rgba(37,99,235,0.6)'
+                  : 'linear-gradient(135deg, #2563eb, #4f46e5)',
+                boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
+                opacity: isLoading ? 0.7 : 1,
+              }}
             >
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Signing in...</span>
+                  <span>Signing in…</span>
                 </>
               ) : (
                 'Sign In'
@@ -102,19 +166,18 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-slate-500">
+          <p className="mt-5 text-center text-xs text-white/30">
             New organization?{' '}
-            <Link href="/register" className="text-blue-400 hover:text-blue-300 font-semibold">
+            <Link href="/register" className="text-blue-400 hover:text-blue-300 font-semibold transition">
               Create workspace
             </Link>
           </p>
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-600">
-          © 2026 Lead CRM · Powered by Yolopment Private Limited
+        <p className="mt-6 text-center text-[11px] text-white/20">
+          © 2026 Lead CRM · Yolopment Private Limited
         </p>
       </div>
     </div>
   );
 }
-

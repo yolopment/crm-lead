@@ -14,10 +14,6 @@
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
-    <!-- SMS Tracking -->
-    <uses-permission android:name="android.permission.READ_SMS" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-
     <!-- Audio Recording File Access (All Android versions) -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -29,6 +25,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <application
         android:name=".CompanionApplication"
@@ -80,13 +78,22 @@
             </intent-filter>
         </receiver>
 
-        <!-- Real-time SMS Receiver -->
+        <!-- Follow-up Alarm & Action Receivers -->
         <receiver
-            android:name=".receiver.SmsReceiver"
+            android:name=".notification.FollowupAlarmReceiver"
             android:enabled="true"
-            android:exported="true">
-            <intent-filter android:priority="999">
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.crmlead.companion.ACTION_FOLLOWUP_ALARM" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".notification.FollowupActionReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.crmlead.companion.ACTION_COMPLETE_FOLLOWUP" />
             </intent-filter>
         </receiver>
 

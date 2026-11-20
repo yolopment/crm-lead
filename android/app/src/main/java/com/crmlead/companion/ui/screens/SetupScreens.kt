@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,9 +72,13 @@ fun StepProgressHeader(currentStep: Int, totalSteps: Int = 3) {
     }
 }
 
-// --- Illustration: Phone with Red Call Pill ---
+// --- Illustration: Phone with Red/Blue Action Pill ---
 @Composable
-fun PhoneCallIllustration(isCallStep: Boolean = true, isNotificationStep: Boolean = false) {
+fun PhoneCallIllustration(
+    isCallStep: Boolean = false,
+    isCallingStep: Boolean = false,
+    isNotificationStep: Boolean = false
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -103,13 +109,13 @@ fun PhoneCallIllustration(isCallStep: Boolean = true, isNotificationStep: Boolea
                     .background(Color(0xFFE2E8F0)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("👤", fontSize = 12.sp)
+                Icon(Icons.Default.Person, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(16.dp))
             }
 
             Spacer(modifier = Modifier.width(10.dp))
 
             // Center highlighted pill
-            if (isCallStep) {
+            if (isCallStep || isCallingStep) {
                 Box(
                     modifier = Modifier
                         .width(130.dp)
@@ -122,7 +128,12 @@ fun PhoneCallIllustration(isCallStep: Boolean = true, isNotificationStep: Boolea
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text("📞", fontSize = 14.sp)
+                        Icon(
+                            if (isCallingStep) Icons.Default.CallMade else Icons.Default.Phone,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(
                             modifier = Modifier
@@ -146,7 +157,7 @@ fun PhoneCallIllustration(isCallStep: Boolean = true, isNotificationStep: Boolea
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text("🔔", fontSize = 14.sp)
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(
                             modifier = Modifier
@@ -170,7 +181,7 @@ fun PhoneCallIllustration(isCallStep: Boolean = true, isNotificationStep: Boolea
                     .background(Color(0xFFE2E8F0)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(if (isCallStep) "🔔" else "📱", fontSize = 12.sp)
+                Text(if (isCallStep || isCallingStep) "🔔" else "📱", fontSize = 12.sp)
             }
         }
     }
@@ -212,15 +223,15 @@ fun SignInScreen(
             Box(
                 modifier = Modifier
                     .size(28.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(BrandBlue),
                 contentAlignment = Alignment.Center
             ) {
-                Text("✓", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
             }
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "Leadzam",
+                text = "Lead CRM",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark
@@ -248,7 +259,7 @@ fun SignInScreen(
                     color = TextDark
                 )
                 Text(
-                    text = if (useTokenPairing) "Enter device token from CRM dashboard" else "Use your Leadzam credentials",
+                    text = if (useTokenPairing) "Enter device token from CRM dashboard" else "Use your workspace credentials",
                     fontSize = 14.sp,
                     color = TextSubtle,
                     modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
@@ -516,16 +527,16 @@ fun SetupOverviewScreen(
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Notifications", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
-                        Text("Know if syncing stops", fontSize = 13.sp, color = TextSubtle)
+                        Text("Calling", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
+                        Text("Start calls from the Lead CRM website", fontSize = 13.sp, color = TextSubtle)
                     }
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFFFEF3C7))
+                            .background(Color(0xFFFEE2E2))
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text("Recommended", color = Color(0xFFD97706), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("Required", color = BrandRed, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
 
@@ -547,16 +558,16 @@ fun SetupOverviewScreen(
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Work SIM", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
-                        Text("Choose which SIM is for work", fontSize = 13.sp, color = TextSubtle)
+                        Text("Notifications", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
+                        Text("Know if syncing stops", fontSize = 13.sp, color = TextSubtle)
                     }
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFFFEE2E2))
+                            .background(Color(0xFFFEF3C7))
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text("Required", color = BrandRed, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("Recommended", color = Color(0xFFD97706), fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
             }
@@ -647,7 +658,7 @@ fun StepCallTrackingScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("✓", color = BrandGreen, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Sees the number, time and length of each call",
@@ -662,10 +673,10 @@ fun StepCallTrackingScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("⊘", color = BrandRed, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                    Icon(Icons.Default.Block, contentDescription = null, tint = BrandRed, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Never listens to or records your calls without policy",
+                        text = "Never listens to or records your calls",
                         fontSize = 14.sp,
                         color = TextDark
                     )
@@ -705,7 +716,117 @@ fun StepCallTrackingScreen(
 }
 
 // ==========================================
-// SCREEN 5 & 6: STEP 2 OF 3 (NOTIFICATIONS)
+// SCREEN 4B: STEP 2 OF 3 (ALLOW CALLING)
+// ==========================================
+@Composable
+fun StepAllowCallingScreen(
+    onAllow: () -> Unit,
+    onLater: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ScreenBackground)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        StepProgressHeader(currentStep = 2, totalSteps = 3)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Phone call illustration with CallMade icon
+        PhoneCallIllustration(isCallingStep = true)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Badge: Required
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xFFFEE2E2))
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text("Required", color = BrandRed, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Allow calling",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextDark,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "When you tap Call on the Lead CRM website, this phone dials the number for you straight away.",
+            fontSize = 14.sp,
+            color = TextMuted,
+            textAlign = TextAlign.Center,
+            lineHeight = 20.sp
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Info Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "It only dials when you start a call from Lead CRM",
+                        fontSize = 14.sp,
+                        color = TextDark
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = onAllow,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = BrandRed)
+        ) {
+            Text("Allow", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(onClick = onLater) {
+            Text("I'll do this later", color = TextSubtle, fontSize = 14.sp)
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = "🔒 Only work calls are synced.",
+            fontSize = 12.sp,
+            color = TextSubtle
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+}
+
+// ==========================================
+// SCREEN 5 & 6: STEP 3 OF 3 (NOTIFICATIONS)
 // ==========================================
 @Composable
 fun StepNotificationsScreen(
@@ -719,7 +840,7 @@ fun StepNotificationsScreen(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        StepProgressHeader(currentStep = 2, totalSteps = 3)
+        StepProgressHeader(currentStep = 3, totalSteps = 3)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -817,7 +938,7 @@ fun StepWorkSimScreen(
                 .background(Color(0xFFEFF6FF)),
             contentAlignment = Alignment.Center
         ) {
-            Text("📶", fontSize = 48.sp)
+            Icon(Icons.Default.SimCard, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(48.dp))
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -982,7 +1103,9 @@ fun StepWorkSimScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Text("🔒 Your data stays safe", fontSize = 12.sp, color = TextSubtle)
+            Icon(Icons.Default.Lock, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Your data stays private & secure", fontSize = 12.sp, color = TextSubtle)
         }
         Text(
             text = "Only matched call activity is synced. Privacy Policy",
@@ -1018,7 +1141,7 @@ fun SetupCompleteScreen(
                 .background(Color(0xFFDCFCE7)),
             contentAlignment = Alignment.Center
         ) {
-            Text("✓", color = BrandGreen, fontWeight = FontWeight.Black, fontSize = 36.sp)
+            Icon(Icons.Default.Check, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(36.dp))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1033,7 +1156,7 @@ fun SetupCompleteScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "LeadZam will sync your calls on its own.\nCheck it any time in Menu > Permissions.",
+            text = "Lead CRM will sync your calls automatically.\nCheck status any time in Menu > Permissions.",
             fontSize = 14.sp,
             color = TextMuted,
             textAlign = TextAlign.Center,
@@ -1057,7 +1180,7 @@ fun SetupCompleteScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("📞", fontSize = 16.sp)
+                        Icon(Icons.Default.Phone, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Call tracking", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextDark)
                     }
@@ -1073,7 +1196,7 @@ fun SetupCompleteScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🔔", fontSize = 16.sp)
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Notifications", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextDark)
                     }
@@ -1089,7 +1212,7 @@ fun SetupCompleteScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("|||", fontWeight = FontWeight.Black, fontSize = 16.sp, color = BrandBlue)
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Call recordings", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextDark)
                     }
@@ -1098,7 +1221,23 @@ fun SetupCompleteScreen(
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = Color(0xFFF1F5F9))
 
-                // Row 4
+                // Row 4: Calling
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CallMade, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Calling", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextDark)
+                    }
+                    Text("✓ On", color = BrandGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = Color(0xFFF1F5F9))
+
+                // Row 5
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1107,9 +1246,9 @@ fun SetupCompleteScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("⚡", fontSize = 16.sp)
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Keep LeadZam running", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextDark)
+                        Text("Keep Lead CRM running", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextDark)
                     }
                     Text("✓ On", color = BrandGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
@@ -1161,7 +1300,7 @@ fun ImportRecentCallsScreen(
                 .background(Color(0xFFEFF6FF)),
             contentAlignment = Alignment.Center
         ) {
-            Text("🕒", fontSize = 42.sp)
+            Icon(Icons.Default.History, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(42.dp))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1328,11 +1467,11 @@ fun CompanionDashboardScreen(
                         .background(BrandBlue),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("✓", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Leadzam",
+                    text = "Lead CRM",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextDark
@@ -1369,7 +1508,7 @@ fun CompanionDashboardScreen(
                     modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("⚠️", fontSize = 20.sp)
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -1517,7 +1656,11 @@ fun CompanionDashboardScreen(
                     fontSize = 13.sp
                 )
             } else {
-                Text("🎙️ Scan & Sync Call Recordings", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Scan & Sync Call Recordings", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
             }
         }
 
@@ -1568,7 +1711,7 @@ fun CompanionDashboardScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📞", fontSize = 32.sp)
+                    Icon(Icons.Default.PhoneCallback, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(36.dp))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("No calls logged yet", fontWeight = FontWeight.Medium, color = TextSubtle)
                     Text("Calls will appear here automatically", fontSize = 12.sp, color = TextSubtle)
@@ -1590,11 +1733,11 @@ fun CompanionDashboardScreen(
                             modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (call.direction == "INBOUND") "↙" else "↗",
-                                color = if (call.status == "MISSED") BrandRed else BrandBlue,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 18.sp
+                            Icon(
+                                imageVector = if (call.direction.equals("INBOUND", ignoreCase = true)) Icons.Default.CallReceived else Icons.Default.CallMade,
+                                contentDescription = call.direction,
+                                tint = if (call.status == "MISSED") BrandRed else BrandBlue,
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
@@ -1607,17 +1750,30 @@ fun CompanionDashboardScreen(
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 if (call.audioFilePath != null) {
-                                    Text(
-                                        text = if (call.isAudioUploaded) "🎙️ Rec" else "⏳ Audio Pending",
-                                        color = if (call.isAudioUploaded) BrandGreen else Color(0xFFD97706),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = if (call.isAudioUploaded) Icons.Default.Mic else Icons.Default.Schedule,
+                                            contentDescription = null,
+                                            tint = if (call.isAudioUploaded) BrandGreen else Color(0xFFD97706),
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text(
+                                            text = if (call.isAudioUploaded) "Recorded" else "Audio Pending",
+                                            color = if (call.isAudioUploaded) BrandGreen else Color(0xFFD97706),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
                                 } else {
                                     Text("No rec.", color = TextSubtle, fontSize = 11.sp)
                                 }
                                 if (call.isSynced) {
-                                    Text("✓ Synced", color = BrandGreen, fontSize = 10.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(10.dp))
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text("Synced", color = BrandGreen, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                    }
                                 }
                             }
                         }

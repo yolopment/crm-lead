@@ -14,11 +14,19 @@ router.post('/upload-by-match', authenticate, audioUpload.single('audio'), CallC
 router.post('/:callId/upload-recording', authenticate, audioUpload.single('audio'), CallController.uploadRecording);
 router.post('/:callId/audio', authenticate, audioUpload.single('audio'), CallController.uploadRecording);
 
+// Remote Web-to-Phone Calling triggers
+router.post('/dial-request', authenticate, CallController.requestDial);
+router.get('/pending-dial', authenticate, CallController.getPendingDial);
+router.post('/dial-complete', authenticate, CallController.completeDial);
+
 // Dashboard endpoints
+router.get('/missed-callbacks', authenticate, CallController.getMissedCallbacks);
+router.post('/missed-callbacks/:callId/resolve', authenticate, CallController.resolveMissedCallback);
 router.get('/', authenticate, CallController.getCalls);
 router.get('/stats', authenticate, CallController.getStats);
 router.get('/activity', authenticate, CallController.getActivity);
 router.post('/:callId/notes', authenticate, CallController.addNote);
+router.post('/:callId/outcome', authenticate, CallController.setOutcome);
 
 export default router;
 

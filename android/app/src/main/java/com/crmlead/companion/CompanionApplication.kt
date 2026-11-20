@@ -15,6 +15,9 @@ class CompanionApplication : Application() {
         // Start Call Recording foreground service
         CallRecordingService.start(this)
 
+        // Initialize Follow-up Notification Channel
+        com.crmlead.companion.notification.FollowupNotificationManager.initChannel(this)
+
         // Schedule periodic background sync every 15 minutes as fallback
         val periodicSyncRequest = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES).build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(

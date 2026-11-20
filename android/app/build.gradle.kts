@@ -12,8 +12,8 @@ android {
         applicationId = "com.crmlead.companion"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 100
+        versionName = "1.7.54"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -21,13 +21,26 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("crm-release.jks")
+            storePassword = "crmlead123"
+            keyAlias = "crmlead"
+            keyPassword = "crmlead123"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -56,6 +69,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
 
     // Room Database
     implementation("androidx.room:room-runtime:2.6.1")

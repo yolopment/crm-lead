@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma.js';
-import { streamAudioFile } from '../services/storage.service.js';
+import { streamAudioFile, processAndSaveAudio, streamAudioOrRedirect } from '../services/storage.service.js';
 import { CallDirection, CallStatus, LeadStage } from '@prisma/client';
 import path from 'path';
 
@@ -181,14 +181,15 @@ export class CallController {
         return;
       }
 
-      // Store relative path to recording file
-      const relativePath = path.join(orgId, req.file.filename);
+      // Process and save audio file (uploads to Cloudflare R2 / Google Drive / local disk)
+      const { audioPath, audioSize, gdriveUrl } = await processAndSaveAudio(req.file, orgId, call.id);
 
       const updatedCall = await prisma.call.update({
         where: { id: call.id },
         data: {
-          audioPath: relativePath,
-          audioSize: req.file.size,
+          audioPath,
+          audioSize,
+          gdriveUrl: gdriveUrl || undefined,
         },
       });
 
@@ -197,6 +198,7 @@ export class CallController {
         callId: updatedCall.id,
         audioSize: updatedCall.audioSize,
         audioPath: updatedCall.audioPath,
+        gdriveUrl: updatedCall.gdriveUrl,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to upload audio recording.' });
@@ -216,8 +218,6 @@ export class CallController {
         res.status(400).json({ error: 'No audio file provided in request body.' });
         return;
       }
-
-      const relativePath = path.join(orgId, req.file.filename);
 
       // Clean phone number (strip spaces, symbols)
       const cleanPhone = (phoneNumber || '').replace(/[\s\-\(\)]/g, '');
@@ -259,11 +259,14 @@ export class CallController {
       }
 
       if (call) {
+        const { audioPath, audioSize, gdriveUrl } = await processAndSaveAudio(req.file, orgId, call.id);
+
         const updatedCall = await prisma.call.update({
           where: { id: call.id },
           data: {
-            audioPath: relativePath,
-            audioSize: req.file.size,
+            audioPath,
+            audioSize,
+            gdriveUrl: gdriveUrl || undefined,
           },
         });
 
@@ -285,6 +288,7 @@ export class CallController {
           callId: updatedCall.id,
           audioSize: updatedCall.audioSize,
           audioPath: updatedCall.audioPath,
+          gdriveUrl: updatedCall.gdriveUrl,
         });
         return;
       }
@@ -311,6 +315,9 @@ export class CallController {
         });
       }
 
+      const tempCallId = `new-${Date.now()}`;
+      const { audioPath, audioSize, gdriveUrl } = await processAndSaveAudio(req.file, orgId, tempCallId);
+
       const newCall = await prisma.call.create({
         data: {
           orgId,
@@ -321,8 +328,9 @@ export class CallController {
           status: CallStatus.CONNECTED,
           durationSec: parseInt(durationSec, 10) || 0,
           startedAt: callTime || new Date(),
-          audioPath: relativePath,
-          audioSize: req.file.size,
+          audioPath,
+          audioSize,
+          gdriveUrl: gdriveUrl || undefined,
         },
       });
 
@@ -334,6 +342,7 @@ export class CallController {
         callId: newCall.id,
         audioSize: newCall.audioSize,
         audioPath: newCall.audioPath,
+        gdriveUrl: newCall.gdriveUrl,
       });
     } catch (error: any) {
       console.error('Error in uploadByMatch:', error);
@@ -358,7 +367,7 @@ export class CallController {
         return;
       }
 
-      streamAudioFile(call.audioPath, req, res);
+      await streamAudioOrRedirect(call.audioPath, req, res);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Error streaming audio recording.' });
     }
@@ -446,8 +455,10 @@ export class CallController {
         durationFormatted: `${Math.floor(c.durationSec / 60)}m ${String(c.durationSec % 60).padStart(2, '0')}s`,
         startedAt: c.startedAt,
         notes: c.notes,
+        tags: c.tags,
         hasAudio: !!c.audioPath,
         audioUrl: c.audioPath ? `/api/v1/calls/${c.id}/audio` : null,
+        gdriveUrl: c.gdriveUrl || null,
         agent: c.user,
         lead: c.lead,
       }));
@@ -619,6 +630,351 @@ export class CallController {
       res.status(200).json(updated);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to update call note.' });
+    }
+  }
+
+  /**
+   * Set Call Outcome (Connected / Not connected, outcome chip, notes, follow-up, stage update)
+   */
+  static async setOutcome(req: Request, res: Response): Promise<void> {
+    try {
+      const { callId } = req.params;
+      const orgId = req.user!.orgId;
+      const userId = req.user!.id;
+      const { status, outcome, notes, scheduleFollowup, followupDate, updateLeadStage } = req.body;
+
+      const call = await prisma.call.findFirst({
+        where: { id: callId, orgId },
+        include: { lead: true },
+      });
+
+      if (!call) {
+        res.status(404).json({ error: 'Call not found.' });
+        return;
+      }
+
+      const callStatus = status === 'NOT_CONNECTED' || status === 'MISSED' ? 'MISSED' : 'CONNECTED';
+
+      const updatedCall = await prisma.call.update({
+        where: { id: call.id },
+        data: {
+          status: callStatus,
+          tags: outcome || call.tags,
+          notes: notes !== undefined ? notes : call.notes,
+        },
+      });
+
+      // If updateLeadStage was requested or if outcome implies a stage
+      if (call.leadId && (updateLeadStage || outcome === 'Converted')) {
+        const newStage = updateLeadStage || (outcome === 'Converted' ? 'WON' : undefined);
+        if (newStage) {
+          await prisma.lead.update({
+            where: { id: call.leadId },
+            data: { stage: newStage },
+          });
+        }
+      }
+
+      // If follow-up was toggled ON
+      if (scheduleFollowup && call.leadId && followupDate) {
+        await prisma.followUp.create({
+          data: {
+            orgId,
+            leadId: call.leadId,
+            assignedToId: userId,
+            type: 'CALL',
+            title: `Follow-up call (${outcome || 'Outcome'})`,
+            note: notes || undefined,
+            scheduledAt: new Date(followupDate),
+            status: 'PENDING',
+            priority: 'NORMAL',
+          },
+        });
+      }
+
+      res.status(200).json({ success: true, call: updatedCall });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to set call outcome.' });
+    }
+  }
+
+  /**
+   * Get unresolved missed callbacks with SLA tracking and callback reconciliation
+   */
+  static async getMissedCallbacks(req: Request, res: Response): Promise<void> {
+    try {
+      const orgId = req.user!.orgId;
+      const {
+        range = 'last_24_hours',
+        slaThreshold = '1h',
+        status = 'all',
+      } = req.query;
+
+      const now = new Date();
+      let lookBackDate = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24h default
+
+      if (range === 'last_7_days') {
+        lookBackDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else if (range === 'last_30_days') {
+        lookBackDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      } else if (range === 'all') {
+        lookBackDate = new Date(0);
+      }
+
+      // Parse SLA threshold in milliseconds
+      let slaThresholdMs = 60 * 60 * 1000; // 1 hour default
+      if (slaThreshold === '30m') slaThresholdMs = 30 * 60 * 1000;
+      else if (slaThreshold === '2h') slaThresholdMs = 2 * 60 * 60 * 1000;
+      else if (slaThreshold === '4h') slaThresholdMs = 4 * 60 * 60 * 1000;
+      else if (slaThreshold === '24h') slaThresholdMs = 24 * 60 * 60 * 1000;
+
+      // 1. Fetch all inbound missed calls within lookBack window
+      const missedCalls = await prisma.call.findMany({
+        where: {
+          orgId,
+          direction: CallDirection.INBOUND,
+          status: CallStatus.MISSED,
+          startedAt: { gte: lookBackDate },
+        },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+          lead: {
+            select: { id: true, fullName: true, stage: true, phone: true },
+          },
+        },
+        orderBy: { startedAt: 'desc' },
+      });
+
+      // Filter out manually resolved calls
+      const activeMissed = missedCalls.filter((c) => !c.tags?.includes('resolved_callback'));
+
+      // Group by phone number (taking the latest missed call per number)
+      const phoneMap = new Map<string, typeof activeMissed>();
+      for (const m of activeMissed) {
+        if (!phoneMap.has(m.phoneNumber)) {
+          phoneMap.set(m.phoneNumber, []);
+        }
+        phoneMap.get(m.phoneNumber)!.push(m);
+      }
+
+      const unresolvedItems = [];
+      let notAttemptedCount = 0;
+      let triedNoNextStepCount = 0;
+      let breachedCount = 0;
+
+      for (const [phone, list] of phoneMap.entries()) {
+        const latestMissed = list[0]; // ordered desc
+
+        // Check subsequent calls to this phone number after the missed call
+        const subsequentCalls = await prisma.call.findMany({
+          where: {
+            orgId,
+            phoneNumber: phone,
+            startedAt: { gt: latestMissed.startedAt },
+          },
+          orderBy: { startedAt: 'asc' },
+        });
+
+        // If any connected call occurred subsequently, this lead is resolved!
+        const connectedCallback = subsequentCalls.find((c) => c.status === CallStatus.CONNECTED);
+        if (connectedCallback) {
+          continue;
+        }
+
+        const attemptedOutbound = subsequentCalls.find((c) => c.direction === CallDirection.OUTBOUND);
+        const callbackStatus = attemptedOutbound ? 'tried_no_next_step' : 'not_attempted';
+
+        if (callbackStatus === 'not_attempted') {
+          notAttemptedCount++;
+        } else {
+          triedNoNextStepCount++;
+        }
+
+        // SLA calculation
+        const elapsedMs = now.getTime() - new Date(latestMissed.startedAt).getTime();
+        const isBreached = elapsedMs > slaThresholdMs;
+        if (isBreached) {
+          breachedCount++;
+        }
+
+        let slaText = '';
+        if (isBreached) {
+          const overdueMs = elapsedMs - slaThresholdMs;
+          const overdueMins = Math.floor(overdueMs / (60 * 1000));
+          const overdueHours = Math.floor(overdueMins / 60);
+          const remainingMins = overdueMins % 60;
+          slaText = overdueHours > 0
+            ? `Breached (${overdueHours}h ${remainingMins}m overdue)`
+            : `Breached (${remainingMins}m overdue)`;
+        } else {
+          const leftMs = slaThresholdMs - elapsedMs;
+          const leftMins = Math.floor(leftMs / (60 * 1000));
+          const leftHours = Math.floor(leftMins / 60);
+          const remainingMins = leftMins % 60;
+          slaText = leftHours > 0
+            ? `${leftHours}h ${remainingMins}m left`
+            : `${remainingMins}m left`;
+        }
+
+        // Time ago text
+        const elapsedHours = Math.floor(elapsedMs / (60 * 60 * 1000));
+        const elapsedDays = Math.floor(elapsedHours / 24);
+        let timeAgoText = '';
+        if (elapsedDays > 0) {
+          timeAgoText = `${elapsedDays}d ago`;
+        } else if (elapsedHours > 0) {
+          timeAgoText = `${elapsedHours}h ago`;
+        } else {
+          const elapsedMins = Math.floor(elapsedMs / (60 * 1000));
+          timeAgoText = `${Math.max(1, elapsedMins)}m ago`;
+        }
+
+        const item = {
+          id: latestMissed.id,
+          phoneNumber: latestMissed.phoneNumber,
+          lead: latestMissed.lead,
+          agent: latestMissed.user,
+          missedCount: list.length,
+          missedAt: latestMissed.startedAt,
+          timeAgoText,
+          callbackStatus,
+          isBreached,
+          slaText,
+          attemptsCount: subsequentCalls.length,
+          lastAttemptAt: subsequentCalls.length > 0 ? subsequentCalls[subsequentCalls.length - 1].startedAt : null,
+          notes: latestMissed.notes,
+        };
+
+        if (status === 'all' || status === callbackStatus) {
+          unresolvedItems.push(item);
+        }
+      }
+
+      const windowLabel =
+        range === 'last_24_hours'
+          ? 'last 24 hours'
+          : range === 'last_7_days'
+          ? 'last 7 days'
+          : range === 'last_30_days'
+          ? 'last 30 days'
+          : 'all time';
+
+      res.status(200).json({
+        stats: {
+          total: notAttemptedCount + triedNoNextStepCount,
+          notAttemptedCount,
+          triedNoNextStepCount,
+          breachedCount,
+          windowLabel,
+        },
+        items: unresolvedItems,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to fetch missed callbacks.' });
+    }
+  }
+
+  /**
+   * Mark a missed callback as manually resolved (e.g. contacted via WhatsApp or in person)
+   */
+  static async resolveMissedCallback(req: Request, res: Response): Promise<void> {
+    try {
+      const orgId = req.user!.orgId;
+      const { callId } = req.params;
+
+      const call = await prisma.call.findFirst({
+        where: { id: callId, orgId },
+      });
+
+      if (!call) {
+        res.status(404).json({ error: 'Call record not found.' });
+        return;
+      }
+
+      const existingTags = call.tags ? call.tags.split(',') : [];
+      if (!existingTags.includes('resolved_callback')) {
+        existingTags.push('resolved_callback');
+      }
+
+      await prisma.call.update({
+        where: { id: callId },
+        data: { tags: existingTags.join(',') },
+      });
+
+      res.status(200).json({ message: 'Callback marked as resolved.', callId });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to resolve callback.' });
+    }
+  }
+
+  // ==========================================
+  // Remote Web-to-Phone Calling Queue
+  // ==========================================
+  private static pendingDials = new Map<string, { id: string; phoneNumber: string; requestedAt: number }>();
+
+  static async requestDial(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+      const orgId = req.user!.orgId;
+      const { phoneNumber, targetUserId } = req.body;
+      if (!phoneNumber) {
+        res.status(400).json({ error: 'Phone number is required.' });
+        return;
+      }
+      const targetUser = targetUserId || userId;
+      const dialId = `dial_${Date.now()}`;
+      const payload = {
+        id: dialId,
+        phoneNumber: String(phoneNumber).trim(),
+        requestedAt: Date.now(),
+        orgId,
+        userId: targetUser,
+      };
+      CallController.pendingDials.set(targetUser, payload);
+      if (orgId) {
+        CallController.pendingDials.set(`org_${orgId}`, payload);
+      }
+      console.log(`[RemoteDial] Queued dial request for user ${targetUser} / org ${orgId}: ${payload.phoneNumber}`);
+      res.status(200).json({ message: 'Remote dial requested successfully.', dialId, phoneNumber });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to request remote dial.' });
+    }
+  }
+
+  static async getPendingDial(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+      const orgId = req.user!.orgId;
+      let pending = CallController.pendingDials.get(userId);
+      if (!pending && orgId) {
+        pending = CallController.pendingDials.get(`org_${orgId}`);
+      }
+      // Auto-expire after 60 seconds
+      if (pending && (Date.now() - pending.requestedAt < 60000)) {
+        res.status(200).json({ pendingDial: pending });
+      } else {
+        if (pending) {
+          CallController.pendingDials.delete(userId);
+          if (orgId) CallController.pendingDials.delete(`org_${orgId}`);
+        }
+        res.status(200).json({ pendingDial: null });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to get pending dial.' });
+    }
+  }
+
+  static async completeDial(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+      const orgId = req.user!.orgId;
+      CallController.pendingDials.delete(userId);
+      if (orgId) CallController.pendingDials.delete(`org_${orgId}`);
+      res.status(200).json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to complete dial.' });
     }
   }
 }

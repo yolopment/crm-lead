@@ -60,6 +60,7 @@ interface Agent {
 
 interface PendingInvitation {
   id: string;
+  token?: string;
   email: string;
   role: string;
   expiresFormatted: string;
@@ -76,8 +77,10 @@ interface Call {
   durationFormatted: string;
   startedAt: string;
   notes: string | null;
+  tags?: string | null;
   hasAudio: boolean;
   audioUrl: string | null;
+  gdriveUrl?: string | null;
   agent: { id: string; name: string; email: string };
   lead: { id: string; fullName: string; stage: string; tags: string } | null;
 }
@@ -98,26 +101,39 @@ interface PrivateNumberItem {
   createdAt: string;
 }
 
-interface SmsItem {
+interface MissedCallbackItem {
   id: string;
   phoneNumber: string;
-  contactName: string | null;
-  body: string;
-  direction: 'INBOUND' | 'OUTBOUND';
-  timestamp: string;
-  createdAt: string;
   lead?: { id: string; fullName: string; stage: string; phone: string } | null;
-  user?: { id: string; name: string; email: string } | null;
+  agent?: { id: string; name: string; email: string } | null;
+  missedCount: number;
+  missedAt: string;
+  timeAgoText: string;
+  callbackStatus: 'not_attempted' | 'tried_no_next_step';
+  isBreached: boolean;
+  slaText: string;
+  attemptsCount: number;
+  lastAttemptAt?: string | null;
+  notes?: string | null;
+}
+
+interface MissedCallbacksResponse {
+  stats: {
+    total: number;
+    notAttemptedCount: number;
+    triedNoNextStepCount: number;
+    breachedCount: number;
+    windowLabel: string;
+  };
+  items: MissedCallbackItem[];
 }
 
 const SUBTABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'missed', label: 'Missed callbacks' },
   { id: 'call_settings', label: 'Call settings' },
   { id: 'team', label: 'Team' },
   { id: 'call_policy', label: 'Call policy' },
   { id: 'devices', label: 'Devices' },
-  { id: 'sms', label: 'SMS Messages' },
 ];
 
 export default function CallsDashboard() {
@@ -143,13 +159,45 @@ export default function CallsDashboard() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Modals
+  const [outcomeModal, setOutcomeModal] = useState<Call | null>(null);
+  const [outcomeConnected, setOutcomeConnected] = useState(true);
+  const [outcomeTag, setOutcomeTag] = useState('');
+  const [outcomeNotes, setOutcomeNotes] = useState('');
+  const [outcomeFollowup, setOutcomeFollowup] = useState(false);
+  const [savingOutcome, setSavingOutcome] = useState(false);
   const [noteModal, setNoteModal] = useState<NoteModal | null>(null);
   const [noteText, setNoteText] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('AGENT');
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [showPairModal, setShowPairModal] = useState<{ name: string; token: string } | null>(null);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [addMemberTab, setAddMemberTab] = useState<'direct' | 'invite'>('direct');
+  const [memberForm, setMemberForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'AGENT',
+    password: 'Password@123',
+  });
+  const [addMemberLoading, setAddMemberLoading] = useState(false);
+  const [createdCredentialsModal, setCreatedCredentialsModal] = useState<{
+    name: string;
+    email: string;
+    password?: string;
+    role: string;
+    deviceToken?: string;
+  } | null>(null);
+  const [editMemberModal, setEditMemberModal] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    role: string;
+    password?: string;
+  } | null>(null);
+  const [editMemberLoading, setEditMemberLoading] = useState(false);
+  const [showPairModal, setShowPairModal] = useState<{ name: string; token: string; email?: string } | null>(null);
   const [showAddDntModal, setShowAddDntModal] = useState(false);
   const [dntPhone, setDntPhone] = useState('');
   const [dntReason, setDntReason] = useState('');
@@ -169,13 +217,68 @@ export default function CallsDashboard() {
   const [selectedDeviceModal, setSelectedDeviceModal] = useState<any | null>(null);
   const [deviceDeleting, setDeviceDeleting] = useState(false);
 
-  // SMS messages state
-  const [smsList, setSmsList] = useState<SmsItem[]>([]);
-  const [smsSearch, setSmsSearch] = useState('');
-  const [smsDirectionFilter, setSmsDirectionFilter] = useState<'ALL' | 'INBOUND' | 'OUTBOUND'>('ALL');
-  const [smsDeleting, setSmsDeleting] = useState(false);
+  // Missed callbacks state
+  const [missedLookBack, setMissedLookBack] = useState('last_24_hours');
+  const [missedSlaThreshold, setMissedSlaThreshold] = useState('1h');
+  const [missedStatusFilter, setMissedStatusFilter] = useState<'all' | 'not_attempted' | 'tried_no_next_step'>('all');
+  const [missedData, setMissedData] = useState<MissedCallbacksResponse>({
+    stats: { total: 0, notAttemptedCount: 0, triedNoNextStepCount: 0, breachedCount: 0, windowLabel: 'last 24 hours' },
+    items: [],
+  });
+  const [isLoadingMissed, setIsLoadingMissed] = useState(false);
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const fetchMissedCallbacks = useCallback(async (silent = false) => {
+    if (!silent) setIsLoadingMissed(true);
+    try {
+      const data = await fetchWithAuth(
+        `/calls/missed-callbacks?range=${missedLookBack}&slaThreshold=${missedSlaThreshold}&status=${missedStatusFilter}`
+      );
+      if (data) setMissedData(data);
+    } catch (err: any) {
+      console.error('Failed to load missed callbacks', err);
+    } finally {
+      setIsLoadingMissed(false);
+    }
+  }, [missedLookBack, missedSlaThreshold, missedStatusFilter]);
+
+  const handleResolveCallback = async (callId: string) => {
+    try {
+      await fetchWithAuth(`/calls/missed-callbacks/${callId}/resolve`, { method: 'POST' });
+      setToast({ message: 'Callback marked as resolved.', type: 'success' });
+      fetchMissedCallbacks(true);
+      loadData(true);
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to mark callback resolved', type: 'error' });
+    }
+  };
+
+  const exportMissedCSV = () => {
+    if (!missedData.items.length) {
+      setToast({ message: 'No missed callbacks to export in this range.', type: 'info' });
+      return;
+    }
+    const headers = ['Phone Number', 'Lead Name', 'Agent', 'Missed Count', 'Missed At', 'SLA Status', 'Callback Status', 'Notes'];
+    const rows = missedData.items.map(item => [
+      item.phoneNumber,
+      item.lead?.fullName || '',
+      item.agent?.name || '',
+      item.missedCount,
+      new Date(item.missedAt).toLocaleString('en-IN'),
+      item.slaText,
+      item.callbackStatus === 'not_attempted' ? 'Not Attempted' : 'Tried, no next step',
+      item.notes || ''
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `missed-callbacks-${missedLookBack}-${Date.now()}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -184,14 +287,13 @@ export default function CallsDashboard() {
       const params = new URLSearchParams({ range: dateRange, agentId: selectedAgent });
       if (searchTerm) params.set('search', searchTerm);
 
-      const [statsData, teamData, callsData, policyData, devicesData, privateData, smsData] = await Promise.all([
+      const [statsData, teamData, callsData, policyData, devicesData, privateData] = await Promise.all([
         fetchWithAuth(`/calls/stats?${params}`),
         fetchWithAuth('/team'),
         fetchWithAuth(`/calls?${params}&limit=50`),
         fetchWithAuth('/policy').catch(() => null),
         fetchWithAuth('/devices').catch(() => []),
         fetchWithAuth('/policy/private-numbers').catch(() => []),
-        fetchWithAuth('/sms?limit=100').catch(() => ({ messages: [] })),
       ]);
 
       setStats(statsData);
@@ -205,7 +307,6 @@ export default function CallsDashboard() {
       if (policyData) setPolicy(policyData);
       if (Array.isArray(devicesData)) setAllDevices(devicesData);
       if (Array.isArray(privateData)) setPrivateNumbers(privateData);
-      if (Array.isArray(smsData?.messages)) setSmsList(smsData.messages);
     } catch (err: any) {
       if (!silent) setToast({ message: err.message || 'Failed to load data', type: 'error' });
     } finally {
@@ -213,6 +314,8 @@ export default function CallsDashboard() {
       setRefreshing(false);
     }
   }, [dateRange, selectedAgent, searchTerm]);
+
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -270,6 +373,42 @@ export default function CallsDashboard() {
     }
   };
 
+  const saveOutcome = async () => {
+    if (!outcomeModal) return;
+    setSavingOutcome(true);
+    try {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(10, 0, 0, 0);
+
+      await fetchWithAuth(`/calls/${outcomeModal.id}/outcome`, {
+        method: 'POST',
+        body: JSON.stringify({
+          status: outcomeConnected ? 'CONNECTED' : 'NOT_CONNECTED',
+          outcome: outcomeTag,
+          notes: outcomeNotes,
+          scheduleFollowup: outcomeFollowup,
+          followupDate: tomorrow.toISOString(),
+          updateLeadStage: outcomeTag === 'Converted' ? 'WON' : undefined,
+        }),
+      });
+
+      setCalls(prev => prev.map(c => c.id === outcomeModal.id ? {
+        ...c,
+        tags: outcomeTag,
+        status: outcomeConnected ? 'CONNECTED' : 'MISSED',
+        notes: outcomeNotes || c.notes,
+      } : c));
+
+      setToast({ message: 'Call outcome saved!', type: 'success' });
+      setOutcomeModal(null);
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to save outcome', type: 'error' });
+    } finally {
+      setSavingOutcome(false);
+    }
+  };
+
   const formatDeviceName = (dev: any) => {
     if (!dev) return 'Device';
     const brand = (dev.brand || '').trim();
@@ -303,17 +442,75 @@ export default function CallsDashboard() {
     }
   };
 
-  const handleDeleteSms = async (smsId: string) => {
-    if (!window.confirm('Are you sure you want to delete this SMS message?')) return;
-    setSmsDeleting(true);
+  // Team Management Handlers
+  const handleAddMemberDirect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberForm.name.trim() || !memberForm.email.trim() || !memberForm.password.trim()) {
+      setToast({ message: 'Name, email, and password are required', type: 'error' });
+      return;
+    }
+    setAddMemberLoading(true);
     try {
-      await fetchWithAuth(`/sms/${smsId}`, { method: 'DELETE' });
-      setSmsList(prev => prev.filter(s => s.id !== smsId));
-      setToast({ message: 'SMS message deleted', type: 'success' });
+      const res = await fetchWithAuth('/team', {
+        method: 'POST',
+        body: JSON.stringify(memberForm),
+      });
+      setToast({ message: `Team member "${memberForm.name}" created!`, type: 'success' });
+      setShowAddMemberModal(false);
+      setCreatedCredentialsModal({
+        name: memberForm.name,
+        email: memberForm.email,
+        password: memberForm.password,
+        role: memberForm.role,
+        deviceToken: res.member?.deviceToken,
+      });
+      setMemberForm({
+        name: '',
+        email: '',
+        phone: '',
+        role: 'AGENT',
+        password: 'Password@123',
+      });
+      loadData(true);
     } catch (err: any) {
-      setToast({ message: err.message || 'Failed to delete SMS', type: 'error' });
+      setToast({ message: err.message || 'Failed to create team member', type: 'error' });
     } finally {
-      setSmsDeleting(false);
+      setAddMemberLoading(false);
+    }
+  };
+
+  const handleUpdateMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editMemberModal) return;
+    setEditMemberLoading(true);
+    try {
+      await fetchWithAuth(`/team/${editMemberModal.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editMemberModal.name,
+          phone: editMemberModal.phone,
+          role: editMemberModal.role,
+          password: editMemberModal.password || undefined,
+        }),
+      });
+      setToast({ message: 'Team member updated successfully', type: 'success' });
+      setEditMemberModal(null);
+      loadData(true);
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to update team member', type: 'error' });
+    } finally {
+      setEditMemberLoading(false);
+    }
+  };
+
+  const handleDeleteMember = async (memberId: string, memberName: string) => {
+    if (!window.confirm(`Are you sure you want to remove "${memberName}" from the workspace team? This will disconnect their paired device.`)) return;
+    try {
+      await fetchWithAuth(`/team/${memberId}`, { method: 'DELETE' });
+      setToast({ message: `Team member ${memberName} removed`, type: 'info' });
+      loadData(true);
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to delete member', type: 'error' });
     }
   };
 
@@ -495,67 +692,64 @@ export default function CallsDashboard() {
     <div className="max-w-7xl mx-auto space-y-5">
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
 
-      {/* Header with Title & Action Badges */}
-      <div>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-              <Phone className="w-4 h-4" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Calls</h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Call activity across your organization — every detected call, visibly reconciled.
-              </p>
-            </div>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-blue-500/30">
+            <Phone className="w-4 h-4" />
           </div>
+          <div>
+            <h1 className="text-[17px] font-bold text-slate-900 tracking-tight leading-none">Calls</h1>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-none">
+              Every detected call, visibly reconciled across your team.
+            </p>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold border border-blue-200/60">
-              <Clock className="w-3 h-3 text-blue-600" />
-              <span>Trial 14 days left</span>
-            </div>
-            <a
-              href="/downloads/crm-companion.apk"
-              download="crm-companion.apk"
-              className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-full text-xs font-semibold border border-emerald-200 transition"
-            >
-              <Smartphone className="w-3 h-3" />
-              <span>Download app</span>
-            </a>
-            <button
-              onClick={() => loadData(true)}
-              disabled={refreshing}
-              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
-              title="Refresh data"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-full text-[11px] font-semibold border border-blue-200/60">
+            <Clock className="w-3 h-3" />
+            <span>14 days trial</span>
           </div>
+          <a
+            href="/downloads/crm-companion.apk"
+            download="crm-companion.apk"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full text-[11px] font-semibold transition"
+          >
+            <Smartphone className="w-3 h-3" />
+            <span>Download app</span>
+          </a>
+          <button
+            onClick={() => loadData(true)}
+            disabled={refreshing}
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-blue-500' : ''}`} />
+          </button>
         </div>
       </div>
 
-      {/* Subtabs Row (LeadZam matching tabs) */}
-      <div className="border-b border-slate-200">
-        <nav className="flex gap-8 overflow-x-auto">
+      {/* Subtabs Row */}
+      <div style={{ borderBottom: '1px solid var(--border)' }}>
+        <nav className="flex gap-1 overflow-x-auto">
           {SUBTABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`pb-3 text-xs font-semibold transition border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-3 pb-3 pt-0.5 text-[12px] font-semibold transition border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
                   isActive
                     ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
                 }`}
               >
-                {tab.id === 'overview' && <SlidersHorizontal className="w-3.5 h-3.5" />}
-                {tab.id === 'missed' && <PhoneOff className="w-3.5 h-3.5" />}
-                {tab.id === 'team' && <Users className="w-3.5 h-3.5" />}
-                {tab.id === 'call_policy' && <Shield className="w-3.5 h-3.5" />}
-                {tab.id === 'devices' && <Smartphone className="w-3.5 h-3.5" />}
-                {tab.id === 'sms' && <MessageSquare className="w-3.5 h-3.5" />}
+                {tab.id === 'overview' && <SlidersHorizontal className="w-3 h-3" />}
+                {tab.id === 'call_settings' && <Settings className="w-3 h-3" />}
+                {tab.id === 'team' && <Users className="w-3 h-3" />}
+                {tab.id === 'call_policy' && <Shield className="w-3 h-3" />}
+                {tab.id === 'devices' && <Smartphone className="w-3 h-3" />}
                 <span>{tab.label}</span>
               </button>
             );
@@ -628,36 +822,36 @@ export default function CallsDashboard() {
             <span>Asia/Kolkata</span>
           </div>
 
-          {/* Blue At-A-Glance Card */}
+          {/* At-A-Glance Summary Card */}
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
             </div>
           ) : stats && (
-            <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
               <div>
                 <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
-                  LAST 7 DAYS AT A GLANCE
+                  ACTIVITY SNAPSHOT
                 </span>
-                <h2 className="text-base md:text-lg font-bold text-slate-900 mt-1">
-                  Your team made{' '}
-                  <span className="text-blue-600">{stats.totalCalls} calls</span> and connected on{' '}
-                  <span className="text-blue-600">{stats.connectedCalls}</span> — a{' '}
-                  <span className="text-emerald-600">{stats.connectRate}% connect rate</span>.
+                <h2 className="text-base md:text-[17px] font-bold text-slate-900 mt-1">
+                  Your team logged{' '}
+                  <span className="text-blue-600 font-extrabold">{stats.totalCalls} calls</span> and connected on{' '}
+                  <span className="text-blue-600 font-extrabold">{stats.connectedCalls}</span> — a{' '}
+                  <span className="text-emerald-600 font-extrabold">{stats.connectRate}% connect rate</span>.
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Those calls involved {stats.uniqueCalls} {stats.uniqueCalls === 1 ? 'number' : 'different numbers'}.
+                <p className="text-xs text-slate-400 mt-1">
+                  Reaching across {stats.uniqueCalls} {stats.uniqueCalls === 1 ? 'unique number' : 'unique phone numbers'}.
                 </p>
               </div>
-              <div className="flex items-center gap-8 border-t md:border-t-0 border-blue-100 pt-4 md:pt-0 shrink-0">
+              <div className="flex items-center gap-6 sm:gap-8 border-t md:border-t-0 border-slate-100 pt-4 md:pt-0 shrink-0">
                 {[
                   { label: 'TALK TIME', value: stats.talkTimeFormatted },
-                  { label: 'UNIQUE CALLS', value: stats.uniqueCalls },
-                  { label: 'LONG CALLS (5 MIN+)', value: stats.longCalls },
+                  { label: 'UNIQUE CONTACTS', value: stats.uniqueCalls },
+                  { label: 'LONG CALLS (≥5M)', value: stats.longCalls },
                 ].map(({ label, value }) => (
                   <div key={label}>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</div>
-                    <div className="text-xl font-black text-slate-900 mt-0.5">{value}</div>
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{label}</div>
+                    <div className="text-xl font-black text-slate-900 mt-0.5 leading-none">{value}</div>
                   </div>
                 ))}
               </div>
@@ -665,36 +859,46 @@ export default function CallsDashboard() {
           )}
 
           {/* Team Leaderboard */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">Your team</h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {team.length} {team.length === 1 ? 'caller' : 'callers'} with matching activity, ranked by call volume. Select one to apply the agent filter.
-              </p>
+          <div className="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden">
+            <div className="p-4 px-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-900 text-xs">Callers Leaderboard</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {team.length} {team.length === 1 ? 'caller' : 'callers'} ranked by volume. Click to filter.
+                </p>
+              </div>
+              {selectedAgent !== 'all' && (
+                <button
+                  onClick={() => setSelectedAgent('all')}
+                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded-md"
+                >
+                  Clear filter ×
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/75 text-[10px] font-bold uppercase text-slate-400 border-b border-slate-100">
+                <thead className="bg-slate-50/75 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                   <tr>
-                    <th className="py-3 px-6">Caller</th>
-                    <th className="py-3 px-6">Calls</th>
-                    <th className="py-3 px-6 w-1/3">Connect Rate</th>
-                    <th className="py-3 px-6">Talk Time</th>
-                    <th className="py-3 px-6">Missed</th>
-                    <th className="py-3 px-6"></th>
+                    <th className="py-2.5 px-5">Caller</th>
+                    <th className="py-2.5 px-5">Calls</th>
+                    <th className="py-2.5 px-5 w-1/3">Connect Rate</th>
+                    <th className="py-2.5 px-5">Talk Time</th>
+                    <th className="py-2.5 px-5">Missed</th>
+                    <th className="py-2.5 px-5 text-right"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {(Array.isArray(team) ? team : []).map((member, idx) => (
                     <tr
                       key={member.id}
-                      className="hover:bg-slate-50/50 transition cursor-pointer"
+                      className={`hover:bg-slate-50/70 transition cursor-pointer ${selectedAgent === member.id ? 'bg-blue-50/40' : ''}`}
                       onClick={() => setSelectedAgent(selectedAgent === member.id ? 'all' : member.id)}
                     >
-                      <td className="py-4 px-6">
+                      <td className="py-3 px-5">
                         <div className="flex items-center gap-3">
-                          <span className="text-xs text-slate-400 font-mono">{idx + 1}</span>
-                          <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center">
+                          <span className="text-xs text-slate-400 font-mono w-4">{idx + 1}</span>
+                          <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0">
                             {member.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
                           </div>
                           <div>
@@ -703,10 +907,10 @@ export default function CallsDashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-6 font-bold text-slate-900">{member.stats.totalCalls}</td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden max-w-[130px]">
+                      <td className="py-3 px-5 font-bold text-slate-900">{member.stats.totalCalls}</td>
+                      <td className="py-3 px-5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden max-w-[120px]">
                             <div
                               className="bg-emerald-500 h-full rounded-full"
                               style={{ width: `${member.stats.connectRate}%` }}
@@ -715,11 +919,11 @@ export default function CallsDashboard() {
                           <span className="text-xs font-bold text-slate-700">{member.stats.connectRate}%</span>
                         </div>
                       </td>
-                      <td className="py-4 px-6 font-semibold text-slate-700">{member.stats.totalTalkTimeFormatted}</td>
-                      <td className="py-4 px-6 font-semibold text-slate-700">{member.stats.missedCalls}</td>
-                      <td className="py-4 px-6 text-right">
-                        <span className="text-xs font-semibold text-slate-400 hover:text-blue-600">
-                          {selectedAgent === member.id ? '← Clear' : 'Filter >'}
+                      <td className="py-3 px-5 font-semibold text-slate-700">{member.stats.totalTalkTimeFormatted}</td>
+                      <td className="py-3 px-5 font-semibold text-slate-700">{member.stats.missedCalls}</td>
+                      <td className="py-3 px-5 text-right">
+                        <span className="text-[11px] font-semibold text-blue-600 hover:underline">
+                          {selectedAgent === member.id ? 'Active Filter' : 'Filter'}
                         </span>
                       </td>
                     </tr>
@@ -806,6 +1010,24 @@ export default function CallsDashboard() {
                           <span className={`w-1.5 h-1.5 rounded-full ${call.status === 'CONNECTED' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                           {call.status === 'CONNECTED' ? 'Connected' : 'Not connected'}
                         </span>
+                        {call.tags && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            {call.tags}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => {
+                            setOutcomeModal(call);
+                            setOutcomeConnected(call.status === 'CONNECTED');
+                            setOutcomeTag(call.tags || '');
+                            setOutcomeNotes(call.notes || '');
+                            setOutcomeFollowup(false);
+                          }}
+                          className="text-[11px] text-blue-600 hover:text-blue-800 ml-1 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded font-semibold flex items-center gap-1 transition"
+                        >
+                          <Plus className="w-2.5 h-2.5" />
+                          <span>{call.tags ? 'Outcome' : 'Add outcome'}</span>
+                        </button>
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
                         <span className="font-semibold text-slate-700">{call.agent?.name}</span>
@@ -839,11 +1061,31 @@ export default function CallsDashboard() {
                     </span>
 
                     {call.hasAudio ? (
-                      <AudioPlayer
-                        callId={call.id}
-                        durationSec={call.durationSec}
-                        durationFormatted={call.durationFormatted}
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <AudioPlayer
+                          callId={call.id}
+                          durationSec={call.durationSec}
+                          durationFormatted={call.durationFormatted}
+                        />
+                        {call.gdriveUrl && (
+                          <a
+                            href={call.gdriveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-slate-200/60"
+                            title="Open recording in Google Drive"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 87.3 78">
+                              <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                              <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                              <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.5l5.85 10.15z" fill="#ea4335"/>
+                              <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                              <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                              <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                            </svg>
+                          </a>
+                        )}
+                      </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1 text-xs text-slate-300 font-medium px-1.5 py-0.5">
@@ -869,70 +1111,6 @@ export default function CallsDashboard() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 2: MISSED CALLBACKS (LeadZam Screenshot 4) */}
-      {/* ========================================================================= */}
-      {activeTab === 'missed' && (
-        <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">LOOK BACK</label>
-                <select className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700">
-                  <option>Last 24 hours</option>
-                  <option>Last 7 days</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">SLA THRESHOLD</label>
-                <select className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700">
-                  <option>1 hour</option>
-                  <option>2 hours</option>
-                  <option>4 hours</option>
-                </select>
-              </div>
-              <span className="text-xs text-slate-400 mt-4">No misses in the last 24 hours</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <Download className="w-3.5 h-3.5 text-slate-500" />
-                <span>Export CSV</span>
-              </button>
-              <button onClick={() => loadData(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-                <span>Refresh</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-              All 0
-            </button>
-            <button className="px-3 py-1 rounded-full text-xs font-semibold bg-white text-slate-600 border border-slate-200 flex items-center gap-1.5">
-              <PhoneOff className="w-3 h-3 text-slate-400" />
-              <span>Not attempted 0</span>
-            </button>
-            <button className="px-3 py-1 rounded-full text-xs font-semibold bg-white text-slate-600 border border-slate-200 flex items-center gap-1.5">
-              <Phone className="w-3 h-3 text-slate-400" />
-              <span>Tried, no next step 0</span>
-            </button>
-          </div>
-
-          {/* Inbox Zero State */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-3 border border-slate-100">
-              <Inbox className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-slate-900 text-sm">Inbox zero</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              No leads are waiting for a callback within the chosen window. New misses will appear here as they happen.
-            </p>
           </div>
         </div>
       )}
@@ -1023,7 +1201,7 @@ export default function CallsDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: TEAM (LeadZam Screenshot 1) */}
+      {/* TAB 3: TEAM (LeadZam Screenshot 1 - Fully Functional) */}
       {/* ========================================================================= */}
       {activeTab === 'team' && (
         <div className="space-y-6">
@@ -1034,49 +1212,115 @@ export default function CallsDashboard() {
                 Everyone whose calls this workspace captures, and whether their phone is set up.
               </p>
             </div>
-            <button
-              onClick={() => setShowInviteModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 shadow-sm transition"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Invite a teammate</span>
-            </button>
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => {
+                  setAddMemberTab('invite');
+                  setShowAddMemberModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition"
+              >
+                <Mail className="w-3.5 h-3.5 text-slate-500" />
+                <span>Invite link</span>
+              </button>
+              <button
+                onClick={() => {
+                  setAddMemberTab('direct');
+                  setShowAddMemberModal(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 shadow-sm transition"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ Add Team Member</span>
+              </button>
+            </div>
           </div>
 
           {/* Members Section */}
           <div className="space-y-3">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              MEMBERS
+              MEMBERS ({team.length})
             </div>
 
             {(Array.isArray(team) ? team : []).map((member) => (
               <div
                 key={member.id}
-                className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
+                className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm hover:border-slate-300 transition"
               >
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">{member.name}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{member.email}</p>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1.5">
-                    <Smartphone className="w-3.5 h-3.5 text-slate-400" />
-                    <span>
-                      {member.devices?.length > 0
-                        ? `${member.devices.length} device · ${member.devices[0].deviceName || 'V2401'}`
-                        : '0 devices paired'}
-                    </span>
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                    {member.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm">{member.name}</h3>
+                      {member.phone && (
+                        <span className="text-[11px] font-mono text-slate-400">
+                          {member.phone}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{member.email}</p>
+                    <div className="flex items-center gap-1.5 text-xs mt-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                      {member.devices?.length > 0 ? (
+                        <span className="text-emerald-600 font-medium flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span>{member.devices[0].deviceName || 'Paired Android'}</span>
+                          {member.devices[0].batteryLevel !== null && (
+                            <span className="text-slate-400 font-normal">({member.devices[0].batteryLevel}%)</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-amber-600 font-medium flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          <span>0 devices paired</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2.5 self-end md:self-center">
-                  <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
-                    {member.role === 'ADMIN' ? 'Admin' : 'Agent'}
+                  <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                    member.role === 'ADMIN'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : member.role === 'MANAGER'
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    {member.role === 'ADMIN' ? 'Admin' : member.role === 'MANAGER' ? 'Manager' : 'Caller / Agent'}
                   </span>
+
                   <button
-                    onClick={() => setShowPairModal({ name: member.name, token: member.deviceToken || 'c89fae019b88231c' })}
+                    onClick={() => setShowPairModal({ name: member.name, token: member.deviceToken || 'c89fae019b88231c', email: member.email })}
                     className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-full text-xs font-semibold transition"
+                    title="Pair Phone via token"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     <span>Set up</span>
+                  </button>
+
+                  <button
+                    onClick={() => setEditMemberModal({
+                      id: member.id,
+                      name: member.name,
+                      email: member.email,
+                      phone: member.phone || '',
+                      role: member.role,
+                    })}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                    title="Edit Member"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteMember(member.id, member.name)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    title="Remove Member"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -1087,13 +1331,13 @@ export default function CallsDashboard() {
           {invitations.length > 0 && (
             <div className="space-y-3 pt-4 border-t border-slate-200">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                PENDING INVITATIONS
+                PENDING INVITATIONS ({invitations.length})
               </div>
 
               {(Array.isArray(invitations) ? invitations : []).map((inv) => (
                 <div
                   key={inv.id}
-                  className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
+                  className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
                 >
                   <div>
                     <h4 className="font-bold text-slate-900 text-sm">{inv.email}</h4>
@@ -1102,7 +1346,17 @@ export default function CallsDashboard() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-4 self-end md:self-center">
+                  <div className="flex items-center gap-3 self-end md:self-center">
+                    <button
+                      onClick={() => {
+                        const link = `${window.location.origin}/register?invite=${inv.token || inv.id}`;
+                        navigator.clipboard.writeText(link);
+                        setToast({ message: 'Invite link copied to clipboard!', type: 'success' });
+                      }}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg transition"
+                    >
+                      Copy Link
+                    </button>
                     <button
                       onClick={() => handleResendInvite(inv.id)}
                       className="text-xs font-semibold text-slate-700 hover:text-blue-600 transition"
@@ -1485,204 +1739,105 @@ export default function CallsDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 6: SMS MESSAGES (Mobile SMS Telemetry & Admin Inbox) */}
+      {/* MODAL: Call Outcome (Matching Companion App Screenshots 7 & 8)            */}
       {/* ========================================================================= */}
-      {activeTab === 'sms' && (
-        <div className="space-y-4">
-          {/* Header & Controls */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">SMS Communications Log</h2>
-              <p className="text-xs text-slate-400">
-                Inbound & outbound text messages synchronized directly from paired agent mobile phones.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => loadData(true)}
-                disabled={refreshing}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
-                <span>{refreshing ? 'Syncing...' : 'Refresh Messages'}</span>
+      {outcomeModal && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setOutcomeModal(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Call outcome</h3>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">{outcomeModal.phoneNumber}</p>
+              </div>
+              <button onClick={() => setOutcomeModal(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
               </button>
             </div>
-          </div>
 
-          {/* 4 Stat Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
-                <span>TOTAL MESSAGES</span>
-              </div>
-              <div className="text-2xl font-black text-slate-900 mt-2">{smsList.length}</div>
+            {/* Segmented Connected vs Not connected */}
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => { setOutcomeConnected(true); setOutcomeTag(''); }}
+                className={`flex-1 py-2 rounded-lg transition ${
+                  outcomeConnected ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Connected
+              </button>
+              <button
+                type="button"
+                onClick={() => { setOutcomeConnected(false); setOutcomeTag(''); }}
+                className={`flex-1 py-2 rounded-lg transition ${
+                  !outcomeConnected ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Not connected
+              </button>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" />
-                <span>INBOUND (CLIENTS)</span>
-              </div>
-              <div className="text-2xl font-black text-emerald-600 mt-2">
-                {smsList.filter(s => s.direction === 'INBOUND').length}
+            {/* Chips */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2">Outcome</label>
+              <div className="flex flex-wrap gap-2">
+                {(outcomeConnected
+                  ? ['Interested', 'Callback Requested', 'Not Interested', 'Converted']
+                  : ['Not Picked', 'Wrong Number']
+                ).map(chip => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => setOutcomeTag(chip)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                      outcomeTag === chip
+                        ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500/20'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    {chip}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <ArrowUpRight className="w-3.5 h-3.5 text-purple-600" />
-                <span>OUTBOUND (AGENTS)</span>
+            {/* Follow-up schedule toggle */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-800 block">Follow up tomorrow 10:00 AM</span>
+                <span className="text-[11px] text-slate-400">Creates a scheduled call in Follow-ups</span>
               </div>
-              <div className="text-2xl font-black text-purple-600 mt-2">
-                {smsList.filter(s => s.direction === 'OUTBOUND').length}
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <Users className="w-3.5 h-3.5 text-slate-600" />
-                <span>UNIQUE CONTACTS</span>
-              </div>
-              <div className="text-2xl font-black text-slate-900 mt-2">
-                {new Set(smsList.map(s => s.phoneNumber)).size}
-              </div>
-            </div>
-          </div>
-
-          {/* Search & Direction Filter Row */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="relative flex-1 min-w-[240px]">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
               <input
-                type="text"
-                placeholder="Search messages by contact name, phone, or text content..."
-                value={smsSearch}
-                onChange={e => setSmsSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+                type="checkbox"
+                checked={outcomeFollowup}
+                onChange={e => setOutcomeFollowup(e.target.checked)}
+                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
               />
             </div>
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg text-xs">
-              {(['ALL', 'INBOUND', 'OUTBOUND'] as const).map(dir => (
-                <button
-                  key={dir}
-                  onClick={() => setSmsDirectionFilter(dir)}
-                  className={`px-3 py-1 rounded-md font-semibold text-xs transition ${
-                    smsDirectionFilter === dir
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {dir === 'ALL' ? 'All' : dir === 'INBOUND' ? 'Inbound Only' : 'Outbound Only'}
-                </button>
-              ))}
+
+            {/* Notes */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Notes (optional)</label>
+              <textarea
+                value={outcomeNotes}
+                onChange={e => setOutcomeNotes(e.target.value)}
+                placeholder="Add conversation summary or next steps..."
+                className="w-full text-xs p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-20"
+              />
             </div>
-          </div>
 
-          {/* SMS Messages Table & Cards */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/75 text-[10px] font-bold uppercase text-slate-400 border-b border-slate-100">
-                  <tr>
-                    <th className="py-3 px-6">CONTACT / PHONE</th>
-                    <th className="py-3 px-6">DIRECTION</th>
-                    <th className="py-3 px-6">MESSAGE TEXT</th>
-                    <th className="py-3 px-6">DATE & TIME</th>
-                    <th className="py-3 px-6">AGENT</th>
-                    <th className="py-3 px-6 text-right">ACTION</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {(() => {
-                    const filtered = smsList.filter(s => {
-                      if (smsDirectionFilter !== 'ALL' && s.direction !== smsDirectionFilter) return false;
-                      if (!smsSearch.trim()) return true;
-                      const q = smsSearch.toLowerCase();
-                      return (
-                        s.phoneNumber.toLowerCase().includes(q) ||
-                        (s.contactName && s.contactName.toLowerCase().includes(q)) ||
-                        (s.lead?.fullName && s.lead.fullName.toLowerCase().includes(q)) ||
-                        s.body.toLowerCase().includes(q)
-                      );
-                    });
-
-                    if (filtered.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan={6} className="py-12 text-center text-slate-400">
-                            <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                            No SMS messages matched your filter. Incoming & outgoing text messages from paired devices will appear here automatically.
-                          </td>
-                        </tr>
-                      );
-                    }
-
-                    return filtered.map(msg => (
-                      <tr key={msg.id} className="hover:bg-slate-50/50 transition">
-                        <td className="py-4 px-6">
-                          <div className="font-bold text-slate-900">
-                            {msg.contactName || msg.lead?.fullName || 'Contact'}
-                          </div>
-                          <div className="font-mono text-[11px] text-slate-500 mt-0.5">
-                            {msg.phoneNumber}
-                          </div>
-                        </td>
-
-                        <td className="py-4 px-6">
-                          {msg.direction === 'INBOUND' ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                              <ArrowDownLeft className="w-3 h-3 text-emerald-600" />
-                              <span>Inbound</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
-                              <ArrowUpRight className="w-3 h-3 text-blue-600" />
-                              <span>Outbound</span>
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-4 px-6 max-w-md">
-                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-800 break-words leading-relaxed">
-                            {msg.body}
-                          </div>
-                        </td>
-
-                        <td className="py-4 px-6">
-                          <div className="font-medium text-slate-700 text-xs">
-                            {new Date(msg.timestamp).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </td>
-
-                        <td className="py-4 px-6">
-                          <div className="font-semibold text-slate-800 text-xs">
-                            {msg.user?.name || 'AFTAB SEKH'}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {msg.user?.email || 'yolopment@gmail.com'}
-                          </div>
-                        </td>
-
-                        <td className="py-4 px-6 text-right">
-                          <button
-                            onClick={() => handleDeleteSms(msg.id)}
-                            disabled={smsDeleting}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="Delete SMS message"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ));
-                  })()}
-                </tbody>
-              </table>
-            </div>
+            <button
+              onClick={saveOutcome}
+              disabled={!outcomeTag || savingOutcome}
+              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition shadow-xs"
+            >
+              {savingOutcome ? 'Saving...' : 'Save outcome'}
+            </button>
           </div>
         </div>
       )}
@@ -1731,62 +1886,343 @@ export default function CallsDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: Invite Teammate */}
+      {/* MODAL: Add / Invite Team Member */}
       {/* ========================================================================= */}
-      {showInviteModal && (
+      {(showAddMemberModal || showInviteModal) && (
         <div
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setShowInviteModal(false)}
+          onClick={() => {
+            setShowAddMemberModal(false);
+            setShowInviteModal(false);
+          }}
         >
           <div
             className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900">Invite a Teammate</h3>
-              <button onClick={() => setShowInviteModal(false)} className="text-slate-400 hover:text-slate-700">
+              <h3 className="font-bold text-slate-900 text-base">Add Teammate</h3>
+              <button
+                onClick={() => {
+                  setShowAddMemberModal(false);
+                  setShowInviteModal(false);
+                }}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleInvite} className="space-y-4">
+
+            {/* Sub-tabs: Direct Add vs Invite by Link */}
+            <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
+              <button
+                type="button"
+                onClick={() => setAddMemberTab('direct')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  addMemberTab === 'direct'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Direct Add (Instant)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMemberTab('invite')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  addMemberTab === 'invite'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Invite by Link
+              </button>
+            </div>
+
+            {addMemberTab === 'direct' ? (
+              <form onSubmit={handleAddMemberDirect} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Rahul Sharma"
+                    value={memberForm.name}
+                    onChange={e => setMemberForm({ ...memberForm, name: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Work Email *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="rahul@company.com"
+                    value={memberForm.email}
+                    onChange={e => setMemberForm({ ...memberForm, email: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={memberForm.phone}
+                    onChange={e => setMemberForm({ ...memberForm, phone: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Role</label>
+                    <select
+                      value={memberForm.role}
+                      onChange={e => setMemberForm({ ...memberForm, role: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="AGENT">Caller / Agent</option>
+                      <option value="MANAGER">Manager</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Password *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Min 6 characters"
+                      value={memberForm.password}
+                      onChange={e => setMemberForm({ ...memberForm, password: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-tight">
+                  Creates their login account instantly. You will receive a summary card to share with them.
+                </p>
+
+                <div className="flex justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddMemberModal(false);
+                      setShowInviteModal(false);
+                    }}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={addMemberLoading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 shadow-sm"
+                  >
+                    {addMemberLoading ? 'Creating Member...' : 'Create Member'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleInvite} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email address *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="colleague@example.com"
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Role</label>
+                  <select
+                    value={inviteRole}
+                    onChange={e => setInviteRole(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="AGENT">Caller / Agent</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-tight">
+                  Generates an invitation token for the workspace. Teammates can complete their profile using the link.
+                </p>
+
+                <div className="flex justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddMemberModal(false);
+                      setShowInviteModal(false);
+                    }}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={inviteLoading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 shadow-sm"
+                  >
+                    {inviteLoading ? 'Generating...' : 'Generate Invite'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: Member Created Credentials Success Card */}
+      {/* ========================================================================= */}
+      {createdCredentialsModal && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setCreatedCredentialsModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3 border border-emerald-100">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <h3 className="font-bold text-slate-900 text-base text-center">Team Member Ready!</h3>
+            <p className="text-xs text-slate-500 text-center mt-1 mb-4">
+              <strong>{createdCredentialsModal.name}</strong> can now log in on the Web Dashboard and Android Companion App.
+            </p>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5 text-xs text-slate-700 mb-4 font-mono">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Email address</label>
+                <span className="text-slate-400 font-sans block text-[10px] uppercase font-bold">LOGIN EMAIL</span>
+                <span className="font-semibold text-slate-900">{createdCredentialsModal.email}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-sans block text-[10px] uppercase font-bold">PASSWORD</span>
+                <span className="font-semibold text-slate-900">{createdCredentialsModal.password}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-sans block text-[10px] uppercase font-bold">FAST PAIRING TOKEN</span>
+                <span className="font-bold text-emerald-600">{createdCredentialsModal.deviceToken || 'c89fae019b88231c'}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-sans block text-[10px] uppercase font-bold">ANDROID APP LINK</span>
+                <span className="text-blue-600 truncate block">http://192.168.1.27:3000/downloads/crm-companion.apk</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const shareText = `Welcome to Yolopment Calls CRM!\n\nHere are your login credentials:\n👤 Name: ${createdCredentialsModal.name}\n📧 Email: ${createdCredentialsModal.email}\n🔑 Password: ${createdCredentialsModal.password}\n📱 Pairing Token: ${createdCredentialsModal.deviceToken || 'c89fae019b88231c'}\n\n📥 Download Android Companion App:\nhttp://192.168.1.27:3000/downloads/crm-companion.apk`;
+                  navigator.clipboard.writeText(shareText);
+                  setToast({ message: 'Login details copied to clipboard!', type: 'success' });
+                }}
+                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <span>📋 Copy Access Details</span>
+              </button>
+              <button
+                onClick={() => setCreatedCredentialsModal(null)}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: Edit Team Member */}
+      {/* ========================================================================= */}
+      {editMemberModal && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setEditMemberModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-900 text-base">Edit Team Member</h3>
+              <button onClick={() => setEditMemberModal(null)} className="text-slate-400 hover:text-slate-700 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateMember} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="colleague@example.com"
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={editMemberModal.name}
+                  onChange={e => setEditMemberModal({ ...editMemberModal, name: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  value={editMemberModal.phone || ''}
+                  onChange={e => setEditMemberModal({ ...editMemberModal, phone: e.target.value })}
+                  placeholder="+91 98765 43210"
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Role</label>
                 <select
-                  value={inviteRole}
-                  onChange={e => setInviteRole(e.target.value)}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={editMemberModal.role}
+                  onChange={e => setEditMemberModal({ ...editMemberModal, role: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="AGENT">Caller / Agent</option>
+                  <option value="MANAGER">Manager</option>
                   <option value="ADMIN">Admin</option>
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">New Password (leave blank to keep current)</label>
+                <input
+                  type="password"
+                  placeholder="Leave blank to keep unchanged"
+                  value={editMemberModal.password || ''}
+                  onChange={e => setEditMemberModal({ ...editMemberModal, password: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowInviteModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  onClick={() => setEditMemberModal(null)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={inviteLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-60"
+                  disabled={editMemberLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 shadow-sm"
                 >
-                  {inviteLoading ? 'Sending...' : 'Send Invitation'}
+                  {editMemberLoading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

@@ -1,6 +1,7 @@
 package com.crmlead.companion.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -9,6 +10,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.QueryStats
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,56 +35,78 @@ fun AnalyticsScreen(
     onOpenDrawer: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) } // 0 = My numbers, 1 = Team
-    var selectedRangeIndex by remember { mutableStateOf(1) } // 0=Today, 1=7 days, 2=30 days
-    val ranges = listOf("Today", "7 days", "30 days", "90 days", "Custom")
+    var selectedRangeIndex by remember { mutableStateOf(0) } // 0 = 7 days, 1 = 30 days, 2 = 12 weeks, etc.
+    val ranges = listOf("7 days", "30 days", "12 weeks", "This month", "Custom")
 
-    // Filter calls based on time range
-    val now = remember { System.currentTimeMillis() }
-    val filteredCalls = remember(callsList, selectedRangeIndex) {
-        val days = when (selectedRangeIndex) {
-            0 -> 1
-            1 -> 7
-            2 -> 30
-            3 -> 90
-            else -> 7
-        }
-        val cutoff = now - (days.toLong() * 24 * 60 * 60 * 1000)
-        callsList.filter { it.startedAt >= cutoff }
+    // Filter calls based on selected range (default: 7 days)
+    val daysCutoff = when (selectedRangeIndex) {
+        0 -> 7
+        1 -> 30
+        2 -> 84
+        3 -> 30
+        else -> 7
     }
 
-    val totalCalls = filteredCalls.size
-    val connectedCalls = filteredCalls.count { it.status == "CONNECTED" }
+    val cutoffTime = remember(daysCutoff) {
+        val cal = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -daysCutoff)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+        }
+        cal.timeInMillis
+    }
+
+    val periodCalls = remember(callsList, cutoffTime) {
+        callsList.filter { it.startedAt >= cutoffTime }
+    }
+
+    // Compute Metrics
+    val totalCalls = periodCalls.size
+    val totalTalkTimeSec = periodCalls.sumOf { it.durationSec }
+    val connectedCalls = periodCalls.count { it.status == "CONNECTED" }
     val connectRate = if (totalCalls > 0) ((connectedCalls * 100) / totalCalls) else 0
-    val totalTalkTimeSec = filteredCalls.sumOf { it.durationSec }
-    val talkTimeFormatted = "${totalTalkTimeSec / 60}m ${totalTalkTimeSec % 60}s"
-    val avgHandleSec = if (connectedCalls > 0) (totalTalkTimeSec / connectedCalls) else 0
-    val avgHandleFormatted = "${avgHandleSec / 60}m ${avgHandleSec % 60}s"
-    val uniqueNumbers = filteredCalls.map { it.phoneNumber }.distinct().size
-    val missedCount = filteredCalls.count { it.status == "MISSED" }
 
-    val outboundCalls = filteredCalls.filter { it.direction == "OUTBOUND" }
-    val outboundConnected = outboundCalls.count { it.status == "CONNECTED" }
-    val outboundMissed = outboundCalls.size - outboundConnected
-
-    val inboundCalls = filteredCalls.filter { it.direction == "INBOUND" }
-    val inboundAnswered = inboundCalls.count { it.status == "CONNECTED" }
-    val inboundMissed = inboundCalls.size - inboundAnswered
-
-    // 7-day daily distribution for bar chart
-    val daysOfWeek = listOf("Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed")
-    val dailyCounts = remember(filteredCalls) {
-        val counts = IntArray(7) { 0 }
-        for (call in filteredCalls) {
-            val cal = Calendar.getInstance().apply { timeInMillis = call.startedAt }
-            val dayIdx = (cal.get(Calendar.DAY_OF_WEEK) + 4) % 7 // Align with Thu..Wed
-            if (dayIdx in 0..6) counts[dayIdx]++
-        }
-        // If counts are small, provide realistic baseline for visual parity
-        if (counts.sum() == 0 && totalCalls > 0) {
-            intArrayOf(1, 6, 4, 1, 4, 10, totalCalls.coerceAtLeast(13))
-        } else counts
+    val talkTimeFormatted = remember(totalTalkTimeSec) {
+        val m = totalTalkTimeSec / 60
+        val s = totalTalkTimeSec % 60
+        "${m}m ${s}s"
     }
-    val maxDaily = dailyCounts.maxOrNull()?.coerceAtLeast(1) ?: 1
+
+    val avgHandleTimeSec = if (connectedCalls > 0) (totalTalkTimeSec / connectedCalls) else 0
+    val avgHandleFormatted = remember(avgHandleTimeSec) {
+        val m = avgHandleTimeSec / 60
+        val s = avgHandleTimeSec % 60
+        "${m}m ${s}s"
+    }
+
+    val uniqueContacts = periodCalls.map { it.phoneNumber }.distinct().size
+    val missedCount = periodCalls.count { it.status == "MISSED" }
+
+    // Breakdown: Inbound vs Outbound
+    val outboundCalls = periodCalls.filter { it.direction.equals("OUTBOUND", ignoreCase = true) }
+    val outboundConnected = outboundCalls.count { it.status == "CONNECTED" }
+    val outboundNoAnswer = outboundCalls.size - outboundConnected
+
+    val inboundCalls = periodCalls.filter { it.direction.equals("INBOUND", ignoreCase = true) }
+    val inboundAnswered = inboundCalls.count { it.status == "CONNECTED" }
+    val inboundMissed = inboundCalls.count { it.status == "MISSED" }
+
+    // 7-day Bar Chart Calculation
+    val daysOfWeek = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val dailyCounts = remember(periodCalls) {
+        val counts = IntArray(7) { 0 }
+        val cal = Calendar.getInstance()
+        periodCalls.forEach { call ->
+            cal.timeInMillis = call.startedAt
+            val dayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 // Monday = 0
+            if (dayOfWeek in 0..6) {
+                counts[dayOfWeek]++
+            }
+        }
+        counts.toList()
+    }
+    val maxDaily = (dailyCounts.maxOrNull() ?: 1).coerceAtLeast(5)
 
     Scaffold(
         topBar = {
@@ -85,12 +114,12 @@ fun AnalyticsScreen(
                 title = {
                     Column {
                         Text("Analytics", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
-                        Text("Shows synced call data", fontSize = 12.sp, color = TextSubtle)
+                        Text("Synced CRM call intelligence", fontSize = 12.sp, color = TextSubtle)
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
-                        Text("≡", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = ScreenBackground)
@@ -106,12 +135,14 @@ fun AnalyticsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // Segmented Tab Selector
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFE2E8F0))
+                    .padding(3.dp)
             ) {
-                Row(modifier = Modifier.padding(4.dp)) {
+                Row(modifier = Modifier.fillMaxWidth()) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -125,7 +156,7 @@ fun AnalyticsScreen(
                             text = "My numbers",
                             fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
                             color = if (selectedTab == 0) BrandBlue else TextSubtle,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                     }
                     Box(
@@ -141,7 +172,7 @@ fun AnalyticsScreen(
                             text = "Team",
                             fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
                             color = if (selectedTab == 1) BrandBlue else TextSubtle,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                     }
                 }
@@ -162,14 +193,15 @@ fun AnalyticsScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
                             .background(if (isSelected) Color.White else Color(0xFFF1F5F9))
+                            .border(1.dp, if (isSelected) BrandBlue else Color.Transparent, RoundedCornerShape(16.dp))
                             .clickable { selectedRangeIndex = index }
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
                             text = label,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) TextDark else TextSubtle
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) BrandBlue else TextSubtle
                         )
                     }
                 }
@@ -183,51 +215,55 @@ fun AnalyticsScreen(
                 // Card 1: Your overview
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Your overview", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.QueryStats, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Your Overview", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                        }
                         Spacer(modifier = Modifier.height(14.dp))
 
+                        // Row 1
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text("Calls", fontSize = 12.sp, color = TextSubtle)
-                                Text(totalCalls.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Text("CALLS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text(totalCalls.toString(), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                             Column {
-                                Text("Talk time", fontSize = 12.sp, color = TextSubtle)
-                                Text(talkTimeFormatted, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Text("TALK TIME", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text(talkTimeFormatted, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                             Column {
-                                Text("Connect rate", fontSize = 12.sp, color = TextSubtle)
-                                Text("$connectRate%", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Text("CONNECT RATE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text("$connectRate%", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
-                        HorizontalDivider(color = Color(0xFFF1F5F9))
-                        Spacer(modifier = Modifier.height(14.dp))
 
+                        // Row 2
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text("Avg handle", fontSize = 12.sp, color = TextSubtle)
-                                Text(avgHandleFormatted, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
+                                Text("AVG HANDLE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text(avgHandleFormatted, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                             }
                             Column {
-                                Text("People called", fontSize = 12.sp, color = TextSubtle)
-                                Text(uniqueNumbers.toString(), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
+                                Text("PEOPLE CALLED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text(uniqueContacts.toString(), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                             }
                             Column {
-                                Text("Missed", fontSize = 12.sp, color = TextSubtle)
-                                Text(missedCount.toString(), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = BrandRed)
+                                Text("MISSED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text(missedCount.toString(), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = BrandRed)
                             }
                         }
                     }
@@ -238,24 +274,31 @@ fun AnalyticsScreen(
                 // Card 2: Calls per day · last 7 days (Bar Chart)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Calls per day · last 7 days", fontSize = 13.sp, color = TextSubtle)
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Calls Per Day", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                            Text("Last 7 days", fontSize = 11.sp, color = TextSubtle)
+                        }
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         // Render Bar Chart
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(130.dp),
+                                .height(120.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Bottom
                         ) {
                             dailyCounts.forEachIndexed { i, count ->
-                                val heightFrac = (count.toFloat() / maxDaily).coerceIn(0.1f, 1f)
+                                val heightFrac = (count.toFloat() / maxDaily).coerceIn(0.12f, 1f)
                                 val isToday = i == dailyCounts.size - 1
 
                                 Column(
@@ -264,16 +307,16 @@ fun AnalyticsScreen(
                                 ) {
                                     Text(
                                         text = count.toString(),
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (isToday) BrandBlue else TextSubtle
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Box(
                                         modifier = Modifier
-                                            .width(28.dp)
+                                            .width(24.dp)
                                             .fillMaxHeight(heightFrac)
-                                            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
                                             .background(if (isToday) BrandBlue else Color(0xFFBFDBFE))
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
@@ -294,26 +337,26 @@ fun AnalyticsScreen(
                 // Card 3: Outbound Breakdown
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Outbound", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                        Text("Outbound Performance", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Calls", fontSize = 13.sp, color = TextSubtle)
-                            Text(outboundCalls.size.toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                            Text("Total Calls", fontSize = 13.sp, color = TextSubtle)
+                            Text(outboundCalls.size.toString(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Connected", fontSize = 13.sp, color = TextSubtle)
-                            Text(outboundConnected.toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                            Text(outboundConnected.toString(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = BrandGreen)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("No answer", fontSize = 13.sp, color = TextSubtle)
-                            Text(outboundMissed.toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                            Text("No Answer / Unreachable", fontSize = 13.sp, color = TextSubtle)
+                            Text(outboundNoAnswer.toString(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
                         }
                     }
                 }
@@ -323,36 +366,38 @@ fun AnalyticsScreen(
                 // Card 4: Inbound Breakdown
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Inbound", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                        Text("Inbound Performance", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Answered", fontSize = 13.sp, color = TextSubtle)
-                            Text(inboundAnswered.toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                            Text("Answered Calls", fontSize = 13.sp, color = TextSubtle)
+                            Text(inboundAnswered.toString(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = BrandGreen)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Missed", fontSize = 13.sp, color = TextSubtle)
-                            Text(inboundMissed.toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BrandRed)
+                            Text("Missed Calls", fontSize = 13.sp, color = TextSubtle)
+                            Text(inboundMissed.toString(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = BrandRed)
                         }
                     }
                 }
             } else {
-                // TAB 2: TEAM ANALYTICS
-
-                // Team overview card
+                // TAB 2: TEAM
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Team overview", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.TrendingUp, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Team Overview", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                        }
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Row(
@@ -360,16 +405,16 @@ fun AnalyticsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text("Calls", fontSize = 12.sp, color = TextSubtle)
-                                Text(totalCalls.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Text("CALLS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text(totalCalls.toString(), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                             Column {
-                                Text("Talk time", fontSize = 12.sp, color = TextSubtle)
-                                Text(talkTimeFormatted, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Text("TALK TIME", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text(talkTimeFormatted, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                             Column {
-                                Text("Active members", fontSize = 12.sp, color = TextSubtle)
-                                Text("1", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextDark)
+                                Text("ACTIVE MEMBERS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSubtle, letterSpacing = 0.5.sp)
+                                Text("1", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
                             }
                         }
                     }
@@ -383,31 +428,35 @@ fun AnalyticsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Leaderboard", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Leaderboard, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Rep Leaderboard", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFFEFF6FF))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
-                            Text("All", color = BrandBlue, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("All", color = BrandBlue, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFFF1F5F9))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
-                            Text("Inbound", color = TextSubtle, fontSize = 12.sp)
+                            Text("Inbound", color = TextSubtle, fontSize = 11.sp)
                         }
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFFF1F5F9))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
-                            Text("Outbound", color = TextSubtle, fontSize = 12.sp)
+                            Text("Outbound", color = TextSubtle, fontSize = 11.sp)
                         }
                     }
                 }
@@ -419,7 +468,7 @@ fun AnalyticsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
                 ) {
                     Row(
                         modifier = Modifier
@@ -434,7 +483,7 @@ fun AnalyticsScreen(
                                 .background(Color(0xFFEFF6FF)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("1", color = BrandBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("1", color = BrandBlue, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -443,25 +492,29 @@ fun AnalyticsScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(4.dp))
                                         .background(Color(0xFFEFF6FF))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
                                 ) {
                                     Text("You", color = BrandBlue, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                                 }
                             }
                             Text(
                                 text = "$talkTimeFormatted talk · $connectRate% connect",
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 color = TextSubtle
                             )
                         }
-                        Text(
-                            text = "$totalCalls calls ›",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            color = TextDark
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "$totalCalls calls",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
             }
@@ -470,4 +523,3 @@ fun AnalyticsScreen(
         }
     }
 }
-

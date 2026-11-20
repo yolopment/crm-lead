@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,7 +90,7 @@ fun SettingsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
-                        Text("≡", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = ScreenBackground)
@@ -125,14 +127,14 @@ fun SettingsScreen(
                         modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFF6FF)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("👥", fontSize = 18.sp)
+                        Icon(Icons.Default.Group, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Team", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                         Text("Invite teammates and see their status", fontSize = 12.sp, color = TextSubtle)
                     }
-                    Text("›", fontSize = 18.sp, color = TextSubtle)
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -158,7 +160,7 @@ fun SettingsScreen(
                                 modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFF6FF)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("≡", fontSize = 18.sp)
+                                Icon(Icons.Default.Settings, contentDescription = "Scope", tint = BrandBlue, modifier = Modifier.size(18.dp))
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
@@ -190,14 +192,14 @@ fun SettingsScreen(
                             modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFF6FF)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("🔒", fontSize = 16.sp)
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Private numbers", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                             Text("1 number excluded", fontSize = 12.sp, color = TextSubtle)
                         }
-                        Text("›", fontSize = 18.sp, color = TextSubtle)
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -226,14 +228,14 @@ fun SettingsScreen(
                         modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFF6FF)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("📁", fontSize = 18.sp)
+                        Icon(Icons.Default.Folder, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Recording folders", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                         Text("1 folder watched · Call", fontSize = 12.sp, color = TextSubtle)
                     }
-                    Text("›", fontSize = 18.sp, color = TextSubtle)
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -260,7 +262,7 @@ fun SettingsScreen(
                             modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFF6FF)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("🌐", fontSize = 18.sp)
+                            Icon(Icons.Default.Language, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
@@ -296,11 +298,11 @@ fun SettingsScreen(
                             modifier = Modifier.size(24.dp).clip(CircleShape).background(Color(0xFFDCFCE7)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("✓", color = BrandGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Icon(Icons.Default.Check, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(16.dp))
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text("LeadZam is up to date", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                            Text("Lead CRM is up to date", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                             Text("You have 1.7.54 (100)", fontSize = 12.sp, color = TextSubtle)
                         }
                     }
@@ -368,7 +370,7 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                Toast.makeText(context, "Support: yolopment@gmail.com", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Support: support@yolopment.com", Toast.LENGTH_SHORT).show()
                             },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -376,14 +378,14 @@ fun SettingsScreen(
                             modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFF6FF)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("🎧", fontSize = 18.sp)
+                            Icon(Icons.Default.SupportAgent, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Help & support", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                             Text("Contact us, or fix a problem with call tracking", fontSize = 12.sp, color = TextSubtle)
                         }
-                        Text("›", fontSize = 18.sp, color = TextSubtle)
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(18.dp))
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFFF1F5F9))

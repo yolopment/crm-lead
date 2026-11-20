@@ -25,6 +25,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     const authHeader = req.headers.authorization;
     const deviceTokenHeader = (req.headers['x-device-token'] as string | undefined) ||
+      (req.headers['x-pairing-token'] as string | undefined) ||
       (authHeader?.startsWith('Device ') ? authHeader.substring(7).trim() : undefined);
 
     // Check device token from Android companion app
@@ -63,10 +64,29 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     }
 
     const token = rawToken;
-    const decoded = jwt.verify(token, config.jwtSecret) as {
-      userId: string;
-      orgId: string;
-    };
+    let decoded: { userId: string; orgId: string } | null = null;
+    try {
+      decoded = jwt.verify(token, config.jwtSecret) as { userId: string; orgId: string };
+    } catch (e) {
+      // Fallback: check if rawToken is a companion device token
+      const userByDeviceToken = await prisma.user.findFirst({
+        where: { deviceToken: token },
+        select: {
+          id: true,
+          orgId: true,
+          email: true,
+          role: true,
+          name: true,
+          isOnLeave: true,
+        },
+      });
+      if (userByDeviceToken) {
+        req.user = userByDeviceToken;
+        next();
+        return;
+      }
+      throw e;
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
