@@ -22,6 +22,7 @@ import billingRoutes from './routes/billing.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import { restoreActiveWhatsAppSessions } from './services/whatsapp.service.js';
+import { initDatabase } from './services/db-init.service.js';
 
 const app = express();
 
@@ -77,10 +78,27 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
+// Setup endpoint for initializing database tables & seeding
+app.get('/api/v1/superadmin/setup', async (req, res) => {
+  try {
+    await initDatabase();
+    res.status(200).json({ status: 'ok', message: 'Database initialized and seeded successfully' });
+  } catch (err: any) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
 // Start Server
-app.listen(config.port, '0.0.0.0', () => {
+app.listen(config.port, '0.0.0.0', async () => {
   console.log(`🚀 CRM-LEAD Backend running on http://0.0.0.0:${config.port}`);
   console.log(`📁 Audio recordings directory: ${config.recordingsDir}`);
+
+  // Automatically initialize MySQL database schema & seed initial accounts
+  try {
+    await initDatabase();
+  } catch (initErr) {
+    console.error('Database initialization error:', initErr);
+  }
 
   // Restore active WhatsApp Linked Device sessions
   restoreActiveWhatsAppSessions().catch(console.error);
