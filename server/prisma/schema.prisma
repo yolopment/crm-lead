@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // For MySQL on Hostinger, change to "mysql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -80,7 +80,7 @@ model SaasAdmin {
 
 model SystemSetting {
   key         String    @id
-  value       String
+  value       String    @db.Text
   description String?
   updatedAt   DateTime  @updatedAt
 }
@@ -89,8 +89,8 @@ model MasterStorageAccount {
   id                 String    @id @default(uuid())
   email              String    @unique
   name               String?
-  accessToken        String    // Encrypted AES-256
-  refreshToken       String?   // Encrypted AES-256
+  accessToken        String    @db.Text // Encrypted AES-256
+  refreshToken       String?   @db.Text // Encrypted AES-256
   tokenExpiry        DateTime?
   folderId           String?   // Root folder ID in this account
   folderUrl          String?
@@ -116,7 +116,7 @@ model Plan {
   maxLeads            Int          @default(500)
   storageQuotaBytes   BigInt       @default(1073741824)  // 1 GB = 1073741824 bytes
   maxCallsPerMonth    Int          @default(1000)
-  features            String?      @default("{}") // JSON string of feature flags
+  features            String?      @default("{}") @db.Text // JSON string of feature flags
   isActive            Boolean      @default(true)
   sortOrder           Int          @default(0)
   createdAt           DateTime     @default(now())
@@ -196,11 +196,11 @@ model Organization {
   allowMemberScope        Boolean      @default(true)
   recordCalls             Boolean      @default(true)
   smartFollowUps          Boolean      @default(false)
-  leadFieldsConfig        String?      // JSON configuration of active custom lead fields
-  leadStagesConfig        String?      // JSON configuration of pipeline stages & lost reasons
-  callDispositionsConfig  String?      // JSON configuration of call outcomes (Connected, Not connected, Archived)
-  productsConfig          String?      // JSON configuration of products & services catalog
-  setupProgress           String?      // JSON configuration of completed setup checklist items
+  leadFieldsConfig        String?      @db.Text // JSON configuration of active custom lead fields
+  leadStagesConfig        String?      @db.Text // JSON configuration of pipeline stages & lost reasons
+  callDispositionsConfig  String?      @db.Text // JSON configuration of call outcomes (Connected, Not connected, Archived)
+  productsConfig          String?      @db.Text // JSON configuration of products & services catalog
+  setupProgress           String?      @db.Text // JSON configuration of completed setup checklist items
 
   // SaaS Subscription Fields
   orgStatus               OrgStatus    @default(TRIAL)
@@ -212,8 +212,8 @@ model Organization {
   storageUsedBytes        BigInt       @default(0)
 
   // Per-Client Google Drive OAuth
-  gdriveAccessToken       String?      // Encrypted OAuth access token
-  gdriveRefreshToken      String?      // Encrypted OAuth refresh token
+  gdriveAccessToken       String?      @db.Text // Encrypted OAuth access token
+  gdriveRefreshToken      String?      @db.Text // Encrypted OAuth refresh token
   gdriveTokenExpiry       DateTime?    // Token expiration
   gdriveFolderId          String?      // Root folder ID in client's Drive
   gdriveEmail             String?      // Connected Google account email
@@ -250,8 +250,8 @@ model User {
   phone          String?
   role           Role          @default(AGENT)
   isOnLeave      Boolean       @default(false)
-  avatarUrl      String?
-  fcmToken       String?
+  avatarUrl      String?       @db.Text
+  fcmToken       String?       @db.Text
   deviceToken    String?       // Used to authenticate mobile sync requests
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -289,8 +289,8 @@ model Lead {
   stage          LeadStage     @default(NEW)
   stageName      String?       @default("Fresh") // Custom pipeline stage name e.g. "Attempting Call", "Connected", "Interested", "Meeting Scheduled", "Won", "Lost"
   lostReason     String?       // Reason if moved to Lost
-  tags           String?       // JSON string or comma-separated e.g. "hot,callback"
-  customFields   String?       // JSON string for dynamic CRM fields (UTM parameters, Ad IDs, custom properties)
+  tags           String?       @db.Text // JSON string or comma-separated e.g. "hot,callback"
+  customFields   String?       @db.Text // JSON string for dynamic CRM fields (UTM parameters, Ad IDs, custom properties)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -317,11 +317,11 @@ model Call {
   durationSec    Int           @default(0)
   startedAt      DateTime      @default(now())
   endedAt        DateTime?
-  audioPath      String?       // Local file path on Hostinger VPS or S3 key
+  audioPath      String?       @db.Text // Local file path on Hostinger VPS or S3 key
   audioSize      Int?          // File size in bytes
-  gdriveUrl      String?       // Direct Google Drive shareable link
-  notes          String?
-  tags           String?       // e.g. "hot,followup"
+  gdriveUrl      String?       @db.Text // Direct Google Drive shareable link
+  notes          String?       @db.Text
+  tags           String?       @db.Text // e.g. "hot,followup"
   deviceId       String?
   createdAt      DateTime      @default(now())
 
@@ -362,7 +362,7 @@ model Note {
   lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  content   String
+  content   String   @db.Text
   createdAt DateTime @default(now())
 }
 
@@ -407,7 +407,7 @@ model SmsMessage {
   userId       String
   phoneNumber  String
   contactName  String?
-  body         String
+  body         String        @db.Text
   direction    CallDirection @default(INBOUND)
   timestamp    DateTime      @default(now())
   createdAt    DateTime      @default(now())
@@ -430,11 +430,11 @@ model Form {
   status           String       @default("ACTIVE") // ACTIVE, DRAFT, PAUSED
   description      String?
   formCode         String?      @default("F-1")
-  fieldsJson       String       @default("[]")
+  fieldsJson       String       @default("[]") @db.Text
   sectionsCount    Int          @default(1)
   submissionsCount Int          @default(0)
-  settingsJson     String?      @default("{}")
-  customizeJson    String?      @default("{}")
+  settingsJson     String?      @default("{}") @db.Text
+  customizeJson    String?      @default("{}") @db.Text
   createdByName    String?      @default("Aftab Sk")
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -450,7 +450,7 @@ model Integration {
   provider     String       // meta_lead_ads, google_sheets, google_ads, indiamart, custom_api, zapier, make, frappe
   name         String
   status       String       @default("DISCONNECTED") // CONNECTED, DISCONNECTED, ERROR
-  configJson   String?      @default("{}")
+  configJson   String?      @default("{}") @db.Text
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -467,7 +467,7 @@ model FollowUp {
   assignedTo    User           @relation(fields: [assignedToId], references: [id], onDelete: Cascade)
   type          FollowUpType   @default(CALL)
   title         String
-  note          String?
+  note          String?        @db.Text
   scheduledAt   DateTime
   completedAt   DateTime?
   status        FollowUpStatus @default(PENDING)
@@ -486,7 +486,7 @@ model WhatsAppSession {
   phoneNumber     String?
   pushName        String?
   status          String       @default("DISCONNECTED") // DISCONNECTED, SCAN_QR, CONNECTING, CONNECTED
-  qrCode          String?      // Data URL of the QR code
+  qrCode          String?      @db.Text // Data URL of the QR code
   lastConnectedAt DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -502,8 +502,8 @@ model WhatsAppMessage {
   senderPhone   String       // 919002797427
   senderName    String?
   fromMe        Boolean      @default(false)
-  body          String
-  mediaUrl      String?
+  body          String       @db.Text
+  mediaUrl      String?      @db.Text
   mediaType     String?      // text, image, document, audio, video
   status        String       @default("SENT") // PENDING, SENT, DELIVERED, READ, RECEIVED
   timestamp     DateTime     @default(now())

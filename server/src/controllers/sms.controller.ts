@@ -127,9 +127,9 @@ export class SmsController {
       if (search) {
         const query = (search as string).trim();
         where.OR = [
-          { phoneNumber: { contains: query, mode: 'insensitive' } },
-          { contactName: { contains: query, mode: 'insensitive' } },
-          { body: { contains: query, mode: 'insensitive' } },
+          { phoneNumber: { contains: query } },
+          { contactName: { contains: query } },
+          { body: { contains: query } },
         ];
       }
 

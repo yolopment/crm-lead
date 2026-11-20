@@ -49,9 +49,9 @@ export const listFollowups = async (req: Request, res: Response) => {
           ...(search
             ? {
                 OR: [
-                  { fullName: { contains: String(search), mode: 'insensitive' } },
-                  { phone: { contains: String(search), mode: 'insensitive' } },
-                  { company: { contains: String(search), mode: 'insensitive' } },
+                  { fullName: { contains: String(search) } },
+                  { phone: { contains: String(search) } },
+                  { company: { contains: String(search) } },
                 ],
               }
             : {}),
@@ -163,11 +163,11 @@ export const listFollowups = async (req: Request, res: Response) => {
 
     if (search) {
       whereClause.OR = [
-        { title: { contains: String(search), mode: 'insensitive' } },
-        { note: { contains: String(search), mode: 'insensitive' } },
-        { lead: { fullName: { contains: String(search), mode: 'insensitive' } } },
-        { lead: { phone: { contains: String(search), mode: 'insensitive' } } },
-        { lead: { company: { contains: String(search), mode: 'insensitive' } } },
+        { title: { contains: String(search) } },
+        { note: { contains: String(search) } },
+        { lead: { fullName: { contains: String(search) } } },
+        { lead: { phone: { contains: String(search) } } },
+        { lead: { company: { contains: String(search) } } },
       ];
     }
 
