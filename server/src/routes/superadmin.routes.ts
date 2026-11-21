@@ -6,6 +6,7 @@ const router = Router();
 
 // Public auth route
 router.post('/login', SuperAdminController.login);
+router.get('/login', (req, res) => res.redirect('/superadmin/login'));
 
 // SaaS Admin authentication required for all routes below
 router.use(authenticateSaasAdmin);

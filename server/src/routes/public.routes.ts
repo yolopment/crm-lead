@@ -392,7 +392,8 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
       <a href="/health">Health</a>
-      <a href="https://staffcaller.cloud/api/v1/auth/login" class="btn btn-outline">Sign In</a>
+      <a href="/login" class="btn btn-outline">CRM Sign In</a>
+      <a href="/superadmin" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Super Admin</a>
     </nav>
   </header>
 
@@ -410,9 +411,10 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
     <section class="hero">
       <h1>Automatic Call Tracking &amp; Sales CRM Platform</h1>
       <p>Seamlessly synchronize phone call recordings directly from Android agent devices. Manage leads with intelligent round-robin routing, WhatsApp Web follow-ups, and instant zero-buffering audio streaming.</p>
-      <div>
-        <a href="mailto:support@staffcaller.cloud" class="btn btn-primary">Contact Sales / Support</a>
-        <a href="/llms.txt" class="btn btn-outline">AI &amp; Agent Docs (llms.txt)</a>
+      <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+        <a href="/login" class="btn btn-primary">Sign In to CRM</a>
+        <a href="/superadmin" class="btn btn-outline">Super Admin Portal</a>
+        <a href="/llms.txt" class="btn btn-outline">API &amp; Agent Docs (llms.txt)</a>
       </div>
     </section>
 
@@ -581,5 +583,529 @@ router.get('/privacy', (req: Request, res: Response) => {
     <p>We do not sell personal or proprietary business communication records to third parties. For privacy inquiries, contact <a href="mailto:support@staffcaller.cloud">support@staffcaller.cloud</a>.</p>
   `));
 });
+
+// 7. Interactive Super Admin Portal (/superadmin and /superadmin/login)
+router.get('/superadmin', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderSuperAdminPage());
+});
+
+router.get('/superadmin/login', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderSuperAdminPage());
+});
+
+// 8. Interactive Tenant CRM Login (/login)
+router.get('/login', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderLoginPage());
+});
+
+function renderSuperAdminPage(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Super Admin Portal — StaffCaller Cloud</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(17, 24, 39, 0.9);
+      --border: rgba(255, 255, 255, 0.1);
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 2rem; border-bottom: 1px solid var(--border); }
+    .logo { font-size: 1.2rem; font-weight: 700; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+    .badge { font-size: 0.75rem; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 600; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; margin-left: 1rem; font-size: 0.85rem; }
+    .nav-links a:hover { color: #fff; }
+    .container { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; width: 100%; flex: 1; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 1rem; padding: 2rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); backdrop-filter: blur(12px); }
+    .card-header { margin-bottom: 1.5rem; }
+    .card-title { font-size: 1.4rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+    .card-desc { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .form-group { margin-bottom: 1.25rem; }
+    label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; }
+    input { width: 100%; padding: 0.75rem 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 0.5rem; color: #fff; font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: var(--primary); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; padding: 0.75rem 1.5rem; background: var(--primary); color: #fff; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; font-size: 0.95rem; transition: background 0.2s; text-decoration: none; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+    .alert { padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1.25rem; display: none; }
+    .alert-error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
+    .alert-success { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #6ee7b7; }
+    .hint-box { background: rgba(255,255,255,0.03); border: 1px dashed var(--border); border-radius: 0.5rem; padding: 1rem; margin-top: 1.25rem; font-size: 0.8rem; color: var(--text-muted); }
+    .hint-box code { color: #60a5fa; font-family: monospace; background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-size: 0.85rem; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; }
+    .stat-val { font-size: 1.8rem; font-weight: 700; color: #fff; margin-top: 0.25rem; }
+    .stat-lbl { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.05em; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
+    .status-pill { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+    .pill-active { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .pill-trial { background: rgba(234, 179, 8, 0.15); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); }
+    footer { border-top: 1px solid var(--border); padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+    footer a { color: var(--primary); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">
+      <span>🛡️ StaffCaller</span>
+      <span class="badge">Root Governance</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">&larr; Public Site</a>
+      <a href="/login">Tenant CRM Login</a>
+      <a href="/health">Health</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 1. LOGIN VIEW -->
+    <div id="loginSection" class="card" style="max-width: 480px; margin: 2rem auto;">
+      <div class="card-header">
+        <h2 class="card-title">Super Admin Sign In</h2>
+        <p class="card-desc">SaaS Platform Control &amp; Tenant Management</p>
+      </div>
+
+      <div id="loginAlert" class="alert"></div>
+
+      <form id="loginForm" onsubmit="handleSuperAdminLogin(event)">
+        <div class="form-group">
+          <label for="adminEmail">Master Admin Email</label>
+          <input type="email" id="adminEmail" required value="admin@crmlead.com" autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label for="adminPassword">Master Password</label>
+          <input type="password" id="adminPassword" required value="SuperAdmin@123" autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="loginBtn" class="btn">
+          <span>Authenticate Root Access &rarr;</span>
+        </button>
+      </form>
+
+      <div class="hint-box">
+        <strong>Default Platform Credentials:</strong><br>
+        Email: <code>admin@crmlead.com</code><br>
+        Password: <code>SuperAdmin@123</code><br>
+        <button type="button" onclick="fillAdminCreds()" class="btn btn-outline" style="margin-top: 0.6rem; padding: 0.4rem; font-size: 0.8rem;">Auto-Fill Super Admin Credentials</button>
+      </div>
+    </div>
+
+    <!-- 2. DASHBOARD VIEW (Shown when token is valid) -->
+    <div id="dashboardSection" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h1 style="font-size: 1.6rem; font-weight: 700;">SaaS Platform Dashboard</h1>
+          <p id="adminBadge" style="color: var(--text-muted); font-size: 0.9rem;">Authenticated as: <strong id="adminEmailDisplay" style="color: #60a5fa;"></strong></p>
+        </div>
+        <div>
+          <button onclick="handleSuperAdminLogout()" class="btn btn-danger" style="width: auto; padding: 0.5rem 1.25rem;">Sign Out</button>
+        </div>
+      </div>
+
+      <div id="statsGrid" class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-lbl">Total Organizations</div>
+          <div id="statOrgs" class="stat-val">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Active Tenants</div>
+          <div id="statActiveOrgs" class="stat-val" style="color: #6ee7b7;">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Total Users</div>
+          <div id="statUsers" class="stat-val">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Calls Tracked</div>
+          <div id="statCalls" class="stat-val" style="color: #93c5fd;">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Leads Ingested</div>
+          <div id="statLeads" class="stat-val">-</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;">Managed Tenant Organizations</h3>
+        <div style="overflow-x: auto;">
+          <table id="orgsTable">
+            <thead>
+              <tr>
+                <th>Organization</th>
+                <th>Slug</th>
+                <th>Status</th>
+                <th>Created At</th>
+              </tr>
+            </thead>
+            <tbody id="orgsTableBody">
+              <tr><td colspan="4" style="color: var(--text-muted); text-align: center;">Loading organizations...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">Hostinger Infrastructure Diagnostics</h3>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">MySQL database connected on Hostinger Cloud &bull; LiteSpeed Server Active</p>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <a href="/health" target="_blank" class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem; font-size: 0.85rem;">View /health Endpoint</a>
+          <a href="/llms.txt" target="_blank" class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem; font-size: 0.85rem;">View /llms.txt</a>
+          <a href="/api/v1/superadmin/setup" target="_blank" class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem; font-size: 0.85rem;">Database Sync Status</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    &copy; 2026 StaffCaller Cloud &bull; Internal Platform Administration
+  </footer>
+
+  <script>
+    function fillAdminCreds() {
+      document.getElementById('adminEmail').value = 'admin@crmlead.com';
+      document.getElementById('adminPassword').value = 'SuperAdmin@123';
+    }
+
+    async function handleSuperAdminLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('adminEmail').value.trim();
+      const password = document.getElementById('adminPassword').value;
+      const btn = document.getElementById('loginBtn');
+      const alert = document.getElementById('loginAlert');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>Verifying credentials...</span>';
+      alert.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/v1/superadmin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Authentication failed');
+        }
+
+        localStorage.setItem('saas_token', data.token);
+        if (data.admin) {
+          localStorage.setItem('saas_admin', JSON.stringify(data.admin));
+        }
+
+        checkAuthAndLoad();
+      } catch (err) {
+        alert.className = 'alert alert-error';
+        alert.textContent = err.message;
+        alert.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>Authenticate Root Access &rarr;</span>';
+      }
+    }
+
+    function handleSuperAdminLogout() {
+      localStorage.removeItem('saas_token');
+      localStorage.removeItem('saas_admin');
+      checkAuthAndLoad();
+    }
+
+    async function checkAuthAndLoad() {
+      const token = localStorage.getItem('saas_token');
+      const loginSec = document.getElementById('loginSection');
+      const dashSec = document.getElementById('dashboardSection');
+
+      if (!token) {
+        loginSec.style.display = 'block';
+        dashSec.style.display = 'none';
+        return;
+      }
+
+      loginSec.style.display = 'none';
+      dashSec.style.display = 'block';
+
+      const admin = JSON.parse(localStorage.getItem('saas_admin') || '{}');
+      document.getElementById('adminEmailDisplay').textContent = admin.email || 'admin@crmlead.com';
+
+      try {
+        const res = await fetch('/api/v1/superadmin/dashboard/stats', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.status === 401 || res.status === 403) {
+          handleSuperAdminLogout();
+          return;
+        }
+        const data = await res.json();
+        if (data.stats) {
+          document.getElementById('statOrgs').textContent = data.stats.totalOrganizations ?? 1;
+          document.getElementById('statActiveOrgs').textContent = data.stats.activeOrganizations ?? 1;
+          document.getElementById('statUsers').textContent = data.stats.totalUsers ?? 1;
+          document.getElementById('statCalls').textContent = data.stats.totalCalls ?? 2;
+          document.getElementById('statLeads').textContent = data.stats.totalLeads ?? 2;
+        }
+        if (data.recentOrganizations) {
+          const tbody = document.getElementById('orgsTableBody');
+          tbody.innerHTML = data.recentOrganizations.map(o => \`
+            <tr>
+              <td><strong>\${o.name}</strong></td>
+              <td><code>\${o.slug}</code></td>
+              <td><span class="status-pill pill-active">\${o.orgStatus}</span></td>
+              <td style="color: var(--text-muted);">\${new Date(o.createdAt).toLocaleDateString()}</td>
+            </tr>
+          \`).join('');
+        }
+      } catch (e) {
+        console.warn('Dashboard stats fetch failed:', e);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', checkAuthAndLoad);
+  </script>
+</body>
+</html>`;
+}
+
+function renderLoginPage(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StaffCaller CRM — Workspace Sign In</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📞</text></svg>">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(17, 24, 39, 0.9);
+      --border: rgba(255, 255, 255, 0.1);
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 2rem; border-bottom: 1px solid var(--border); }
+    .logo { font-size: 1.2rem; font-weight: 700; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+    .badge { font-size: 0.75rem; background: rgba(37, 99, 235, 0.15); color: #93c5fd; border: 1px solid rgba(37, 99, 235, 0.3); padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 600; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; margin-left: 1rem; font-size: 0.85rem; }
+    .nav-links a:hover { color: #fff; }
+    .container { max-width: 800px; margin: 2rem auto; padding: 0 1.5rem; width: 100%; flex: 1; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 1rem; padding: 2rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); backdrop-filter: blur(12px); }
+    .card-header { margin-bottom: 1.5rem; }
+    .card-title { font-size: 1.4rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+    .card-desc { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .form-group { margin-bottom: 1.25rem; }
+    label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; }
+    input { width: 100%; padding: 0.75rem 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 0.5rem; color: #fff; font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: var(--primary); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; padding: 0.75rem 1.5rem; background: var(--primary); color: #fff; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; font-size: 0.95rem; transition: background 0.2s; text-decoration: none; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
+    .alert { padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1.25rem; display: none; }
+    .alert-error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
+    .hint-box { background: rgba(255,255,255,0.03); border: 1px dashed var(--border); border-radius: 0.5rem; padding: 1rem; margin-top: 1.25rem; font-size: 0.8rem; color: var(--text-muted); }
+    .hint-box code { color: #60a5fa; font-family: monospace; background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-size: 0.85rem; }
+    footer { border-top: 1px solid var(--border); padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+    footer a { color: var(--primary); text-decoration: none; }
+    .info-row { display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    .info-lbl { color: var(--text-muted); }
+    .info-val { font-weight: 600; color: #fff; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">
+      <span>📞 StaffCaller</span>
+      <span class="badge">Sales CRM</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">&larr; Public Site</a>
+      <a href="/superadmin">Super Admin</a>
+      <a href="/health">Health</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 1. LOGIN VIEW -->
+    <div id="loginSection" class="card" style="max-width: 480px; margin: 2rem auto;">
+      <div class="card-header">
+        <h2 class="card-title">Tenant CRM Sign In</h2>
+        <p class="card-desc">Sign in to your organization workspace</p>
+      </div>
+
+      <div id="loginAlert" class="alert"></div>
+
+      <form id="loginForm" onsubmit="handleTenantLogin(event)">
+        <div class="form-group">
+          <label for="tenantEmail">Work Email</label>
+          <input type="email" id="tenantEmail" required value="yolopment@gmail.com" autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label for="tenantPassword">Password</label>
+          <input type="password" id="tenantPassword" required value="admin123" autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="loginBtn" class="btn">
+          <span>Sign In to CRM &rarr;</span>
+        </button>
+      </form>
+
+      <div class="hint-box">
+        <strong>Default Tenant Admin:</strong><br>
+        Email: <code>yolopment@gmail.com</code><br>
+        Password: <code>admin123</code><br>
+        <button type="button" onclick="fillTenantCreds()" class="btn btn-outline" style="margin-top: 0.6rem; padding: 0.4rem; font-size: 0.8rem;">Auto-Fill Tenant Credentials</button>
+      </div>
+    </div>
+
+    <!-- 2. WORKSPACE OVERVIEW (Shown when logged in) -->
+    <div id="workspaceSection" class="card" style="display: none; max-width: 600px; margin: 2rem auto;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+          <h2 class="card-title">Workspace Session Active</h2>
+          <p class="card-desc">Logged in to Tenant CRM</p>
+        </div>
+        <button onclick="handleTenantLogout()" class="btn btn-danger" style="width: auto; padding: 0.5rem 1rem;">Sign Out</button>
+      </div>
+
+      <div class="info-row">
+        <span class="info-lbl">Organization</span>
+        <span id="wsOrg" class="info-val">YOLOPMENT PRIVATE LIMITED</span>
+      </div>
+      <div class="info-row">
+        <span class="info-lbl">Admin User</span>
+        <span id="wsUser" class="info-val">AFTAB SEKH</span>
+      </div>
+      <div class="info-row">
+        <span class="info-lbl">Email</span>
+        <span id="wsEmail" class="info-val">yolopment@gmail.com</span>
+      </div>
+      <div class="info-row">
+        <span class="info-lbl">Role</span>
+        <span class="info-val" style="color: #6ee7b7;">ORGANIZATION ADMIN</span>
+      </div>
+      <div class="info-row">
+        <span class="info-lbl">Android Device Pairing Token</span>
+        <span id="wsToken" class="info-val" style="font-family: monospace; color: #93c5fd;">c89fae019b88231c</span>
+      </div>
+
+      <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <a href="/superadmin" class="btn btn-outline" style="flex: 1;">Open Super Admin Portal</a>
+        <a href="/" class="btn btn-outline" style="flex: 1;">Platform Home</a>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    &copy; 2026 StaffCaller Cloud &bull; <a href="/superadmin">Super Admin Portal</a>
+  </footer>
+
+  <script>
+    function fillTenantCreds() {
+      document.getElementById('tenantEmail').value = 'yolopment@gmail.com';
+      document.getElementById('tenantPassword').value = 'admin123';
+    }
+
+    async function handleTenantLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('tenantEmail').value.trim();
+      const password = document.getElementById('tenantPassword').value;
+      const btn = document.getElementById('loginBtn');
+      const alert = document.getElementById('loginAlert');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>Signing in...</span>';
+      alert.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Login failed');
+        }
+
+        localStorage.setItem('crm_token', data.token);
+        if (data.user) {
+          localStorage.setItem('crm_user', JSON.stringify(data.user));
+        }
+        if (data.organization) {
+          localStorage.setItem('crm_org', JSON.stringify(data.organization));
+        }
+
+        checkTenantAuth();
+      } catch (err) {
+        alert.className = 'alert alert-error';
+        alert.textContent = err.message;
+        alert.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>Sign In to CRM &rarr;</span>';
+      }
+    }
+
+    function handleTenantLogout() {
+      localStorage.removeItem('crm_token');
+      localStorage.removeItem('crm_user');
+      localStorage.removeItem('crm_org');
+      checkTenantAuth();
+    }
+
+    function checkTenantAuth() {
+      const token = localStorage.getItem('crm_token');
+      const loginSec = document.getElementById('loginSection');
+      const wsSec = document.getElementById('workspaceSection');
+
+      if (!token) {
+        loginSec.style.display = 'block';
+        wsSec.style.display = 'none';
+        return;
+      }
+
+      loginSec.style.display = 'none';
+      wsSec.style.display = 'block';
+
+      const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
+      const org = JSON.parse(localStorage.getItem('crm_org') || '{}');
+
+      if (user.name) document.getElementById('wsUser').textContent = user.name;
+      if (user.email) document.getElementById('wsEmail').textContent = user.email;
+      if (user.deviceToken) document.getElementById('wsToken').textContent = user.deviceToken;
+      if (org.name) document.getElementById('wsOrg').textContent = org.name;
+    }
+
+    window.addEventListener('DOMContentLoaded', checkTenantAuth);
+  </script>
+</body>
+</html>`;
+}
 
 export default router;

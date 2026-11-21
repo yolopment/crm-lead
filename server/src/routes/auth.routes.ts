@@ -6,6 +6,7 @@ const router = Router();
 
 router.post('/register', AuthController.register);
 router.post('/login', AuthController.login);
+router.get('/login', (req, res) => res.redirect('/login'));
 router.get('/invite/:token', AuthController.getInviteDetails);
 router.post('/accept-invite', AuthController.acceptInvite);
 router.get('/me', authenticate, AuthController.getProfile);
