@@ -398,14 +398,6 @@ export default function AdminDashboardPage() {
               <h3 className="text-base font-bold text-slate-900">Lead Sources</h3>
               <p className="text-xs text-slate-500">Where inquiries are arriving from</p>
             </div>
-            {!isAgent && (
-              <Link
-                href="/dashboard/integrations"
-                className="text-xs font-bold text-blue-600 hover:underline"
-              >
-                Integrations →
-              </Link>
-            )}
           </div>
 
           <div className="space-y-3">

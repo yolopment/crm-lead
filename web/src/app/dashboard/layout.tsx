@@ -47,7 +47,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Calls', href: '/dashboard/calls', icon: Phone },
   { label: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
   { label: 'Forms', href: '/dashboard/forms', icon: FileText },
-  { label: 'Integrations', href: '/dashboard/integrations', icon: Plug },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -188,7 +187,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     if (isAgent) {
-      if (item.href === '/dashboard/reports' || item.href === '/dashboard/forms' || item.href === '/dashboard/integrations') {
+      if (item.href === '/dashboard/reports' || item.href === '/dashboard/forms') {
         return false;
       }
     }
@@ -245,28 +244,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span>Add Single Lead</span>
                 </button>
                 {!isAgent && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowAddMenu(false);
-                        router.push('/dashboard/leads?action=bulk-upload');
-                      }}
-                      className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Bulk Upload (CSV / XLSX)</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowAddMenu(false);
-                        router.push('/dashboard/integrations');
-                      }}
-                      className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
-                    >
-                      <Zap className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Add from Integration</span>
-                    </button>
-                  </>
+                  <button
+                    onClick={() => {
+                      setShowAddMenu(false);
+                      router.push('/dashboard/leads?action=bulk-upload');
+                    }}
+                    className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Bulk Upload (CSV / XLSX)</span>
+                  </button>
                 )}
               </div>
             )}
