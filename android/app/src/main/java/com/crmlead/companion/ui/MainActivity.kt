@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
         const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         const val KEY_WORK_SIM_SLOT = "work_sim_slot"
         const val KEY_WORK_SIM_NAME = "work_sim_name"
-        const val DEFAULT_SERVER_URL = "http://192.168.1.27:5001"
+        const val DEFAULT_SERVER_URL = "https://staffcaller.cloud"
     }
 
     // Permission Launchers
@@ -137,10 +137,10 @@ class MainActivity : ComponentActivity() {
 
         val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
 
-        // Automatic Wi-Fi IP Migration
+        // Automatic Server Migration to staffcaller.cloud
         var currentSavedUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
-        if (currentSavedUrl.contains("192.168.1.40")) {
-            currentSavedUrl = currentSavedUrl.replace("192.168.1.40", "192.168.1.27")
+        if (currentSavedUrl.contains("192.168.") || currentSavedUrl.contains("localhost")) {
+            currentSavedUrl = DEFAULT_SERVER_URL
             prefs.edit().putString(SyncWorker.KEY_SERVER_URL, currentSavedUrl).apply()
         }
         serverUrlState = currentSavedUrl
@@ -198,7 +198,7 @@ class MainActivity : ComponentActivity() {
                             text = {
                                 Column {
                                     Text(
-                                        text = "Enter current IP for your Mac or Hostinger server. (e.g. http://192.168.1.27:5001)",
+                                        text = "Enter current server URL (e.g. https://staffcaller.cloud)",
                                         fontSize = 13.sp,
                                         color = TextMuted,
                                         modifier = Modifier.padding(bottom = 12.dp)
@@ -259,7 +259,7 @@ class MainActivity : ComponentActivity() {
                                                 val cleanPhone = rawPhone.filter { it.isDigit() || it == '+' }
                                                 if (cleanPhone.isNotEmpty()) {
                                                     withContext(Dispatchers.Main) {
-                                                        Toast.makeText(this@MainActivity, "📞 Calling $cleanPhone from Lead CRM web...", Toast.LENGTH_SHORT).show()
+                                                        Toast.makeText(this@MainActivity, "📞 Calling $cleanPhone from StaffCaller web...", Toast.LENGTH_SHORT).show()
                                                         val hasCallPerm = androidx.core.content.ContextCompat.checkSelfPermission(
                                                             this@MainActivity,
                                                             android.Manifest.permission.CALL_PHONE

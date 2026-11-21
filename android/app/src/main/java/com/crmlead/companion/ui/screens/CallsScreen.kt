@@ -260,7 +260,7 @@ fun CallsScreen(
 
             // Subtitle Caption matching Images 6 & 7
             Text(
-                text = if (selectedTab == 0) "Calls on this device · captured & synchronized" else "Saved in Lead CRM · a call shows after the rep's phone uploads it",
+                text = if (selectedTab == 0) "Calls on this device · captured & synchronized" else "Saved in StaffCaller · a call shows after the rep's phone uploads it",
                 fontSize = 12.sp,
                 color = TextSubtle,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)

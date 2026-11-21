@@ -302,7 +302,7 @@ fun SettingsScreen(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text("Lead CRM is up to date", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                            Text("StaffCaller is up to date", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                             Text("You have 1.7.54 (100)", fontSize = 12.sp, color = TextSubtle)
                         }
                     }

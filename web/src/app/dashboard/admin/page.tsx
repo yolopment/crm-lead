@@ -407,8 +407,8 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
               <a
-                href="/downloads/crm-companion.apk"
-                download="crm-companion-app.apk"
+                href="/downloads/staffcaller.apk"
+                download="staffcaller.apk"
                 className="text-[10px] font-bold text-emerald-700 hover:underline shrink-0"
               >
                 Get APK

@@ -484,7 +484,7 @@ fun LeadsScreen(
                 Text("No saved views yet.", fontSize = 13.sp, color = TextSubtle)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Create and edit views on Lead CRM Web. They show up here automatically.",
+                    text = "Create and edit views on StaffCaller Web. They show up here automatically.",
                     fontSize = 12.sp,
                     color = TextSubtle
                 )

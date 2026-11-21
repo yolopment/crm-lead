@@ -47,7 +47,7 @@ object CallLogImporter {
         }
 
         val prefs = context.getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
-        val serverUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, "http://192.168.1.40:5001") ?: ""
+        val serverUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, "https://staffcaller.cloud") ?: "https://staffcaller.cloud"
         val deviceToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
 
         val cutoffTime = System.currentTimeMillis() - (days.toLong() * 24 * 60 * 60 * 1000)

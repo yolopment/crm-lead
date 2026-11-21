@@ -423,12 +423,12 @@ export default function SettingsPage() {
 
                 <div className="flex items-center gap-3">
                   <a
-                    href="/downloads/crm-companion.apk"
-                    download="crm-companion-app.apk"
+                    href="/downloads/staffcaller.apk"
+                    download="staffcaller.apk"
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
                   >
                     <Smartphone className="w-3.5 h-3.5" />
-                    <span>Install CRM app</span>
+                    <span>Install StaffCaller App</span>
                   </a>
                   <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

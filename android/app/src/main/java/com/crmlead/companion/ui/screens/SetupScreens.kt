@@ -193,7 +193,7 @@ fun PhoneCallIllustration(
 @Composable
 fun SignInScreen(
     initialEmail: String = "",
-    initialServerUrl: String = "http://192.168.1.27:5001",
+    initialServerUrl: String = "https://staffcaller.cloud",
     initialToken: String = "",
     isLoading: Boolean,
     onSignIn: (email: String, pass: String, serverUrl: String) -> Unit,
@@ -231,7 +231,7 @@ fun SignInScreen(
             }
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "Lead CRM",
+                text = "StaffCaller",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark
@@ -528,7 +528,7 @@ fun SetupOverviewScreen(
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Calling", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
-                        Text("Start calls from the Lead CRM website", fontSize = 13.sp, color = TextSubtle)
+                        Text("Start calls from the StaffCaller website", fontSize = 13.sp, color = TextSubtle)
                     }
                     Box(
                         modifier = Modifier
@@ -762,7 +762,7 @@ fun StepAllowCallingScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "When you tap Call on the Lead CRM website, this phone dials the number for you straight away.",
+            text = "When you tap Call on the StaffCaller website, this phone dials the number for you straight away.",
             fontSize = 14.sp,
             color = TextMuted,
             textAlign = TextAlign.Center,
@@ -786,7 +786,7 @@ fun StepAllowCallingScreen(
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "It only dials when you start a call from Lead CRM",
+                        text = "It only dials when you start a call from StaffCaller",
                         fontSize = 14.sp,
                         color = TextDark
                     )
@@ -1156,7 +1156,7 @@ fun SetupCompleteScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Lead CRM will sync your calls automatically.\nCheck status any time in Menu > Permissions.",
+            text = "StaffCaller will sync your calls automatically.\nCheck status any time in Menu > Permissions.",
             fontSize = 14.sp,
             color = TextMuted,
             textAlign = TextAlign.Center,
@@ -1248,7 +1248,7 @@ fun SetupCompleteScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Bolt, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Keep Lead CRM running", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextDark)
+                        Text("Keep StaffCaller running", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextDark)
                     }
                     Text("✓ On", color = BrandGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
@@ -1419,7 +1419,7 @@ fun CompanionDashboardScreen(
                         value = tempServerUrl,
                         onValueChange = { tempServerUrl = it },
                         label = { Text("Server URL") },
-                        placeholder = { Text("http://192.168.1.27:5001") },
+                        placeholder = { Text("https://staffcaller.cloud") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
@@ -1471,7 +1471,7 @@ fun CompanionDashboardScreen(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Lead CRM",
+                    text = "StaffCaller",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextDark
@@ -1518,7 +1518,7 @@ fun CompanionDashboardScreen(
                             color = Color(0xFF92400E)
                         )
                         Text(
-                            text = "Tap to grant storage permission so Lead CRM can auto-fetch Vivo call audio.",
+                            text = "Tap to grant storage permission so StaffCaller can auto-fetch Vivo call audio.",
                             fontSize = 12.sp,
                             color = Color(0xFFB45309)
                         )

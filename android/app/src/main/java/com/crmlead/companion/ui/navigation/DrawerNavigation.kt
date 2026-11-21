@@ -70,7 +70,7 @@ fun LeadZamDrawerContent(
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Lead CRM",
+                        text = "StaffCaller",
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextDark,

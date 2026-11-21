@@ -604,6 +604,21 @@ router.use('/_next', (req: Request, res: Response, next) => {
   next();
 });
 
+router.get([
+  '/downloads/staffcaller.apk',
+  '/downloads/crm-companion.apk',
+  '/downloads/crm-companion-app.apk',
+  '/downloads/companion.apk'
+], (req: Request, res: Response) => {
+  const apkPath = getPublicPath('downloads/staffcaller.apk');
+  if (apkPath && fs.existsSync(apkPath)) {
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', 'attachment; filename="staffcaller.apk"');
+    return res.sendFile(apkPath);
+  }
+  res.status(404).send('StaffCaller Android APK not found.');
+});
+
 router.use('/downloads', (req: Request, res: Response, next) => {
   const dlPath = getPublicPath('downloads');
   if (dlPath) {

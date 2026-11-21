@@ -327,15 +327,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span>CRM trial 14 days left</span>
             </span>
 
-            {/* Download Android App Button */}
+            {/* Download StaffCaller Android App Button */}
             <a
-              href="/downloads/crm-companion.apk"
-              download="crm-companion-app.apk"
+              href="/downloads/staffcaller.apk"
+              download="staffcaller.apk"
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold border border-emerald-200 transition shadow-xs"
-              title="Download Android Companion APK"
+              title="Download StaffCaller Android APK"
             >
               <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Android App</span>
+              <span>StaffCaller App</span>
             </a>
 
             {/* Interactive Follow-up Notifications Bell Popover */}

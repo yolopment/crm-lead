@@ -712,12 +712,12 @@ export default function CallsDashboard() {
             <span>14 days trial</span>
           </div>
           <a
-            href="/downloads/crm-companion.apk"
-            download="crm-companion.apk"
+            href="/downloads/staffcaller.apk"
+            download="staffcaller.apk"
             className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full text-[11px] font-semibold transition"
           >
-            <Smartphone className="w-3 h-3" />
-            <span>Download app</span>
+            <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+            <span>StaffCaller App</span>
           </a>
           <button
             onClick={() => loadData(true)}
@@ -2117,14 +2117,14 @@ export default function CallsDashboard() {
               </div>
               <div>
                 <span className="text-slate-400 font-sans block text-[10px] uppercase font-bold">ANDROID APP LINK</span>
-                <span className="text-blue-600 truncate block">http://192.168.1.27:3000/downloads/crm-companion.apk</span>
+                <span className="text-blue-600 truncate block">https://staffcaller.cloud/downloads/staffcaller.apk</span>
               </div>
             </div>
 
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  const shareText = `Welcome to Yolopment Calls CRM!\n\nHere are your login credentials:\n👤 Name: ${createdCredentialsModal.name}\n📧 Email: ${createdCredentialsModal.email}\n🔑 Password: ${createdCredentialsModal.password}\n📱 Pairing Token: ${createdCredentialsModal.deviceToken || 'c89fae019b88231c'}\n\n📥 Download Android Companion App:\nhttp://192.168.1.27:3000/downloads/crm-companion.apk`;
+                  const shareText = `Welcome to StaffCaller Cloud!\n\nHere are your login credentials:\n👤 Name: ${createdCredentialsModal.name}\n📧 Email: ${createdCredentialsModal.email}\n🔑 Password: ${createdCredentialsModal.password}\n📱 Pairing Token: ${createdCredentialsModal.deviceToken || 'c89fae019b88231c'}\n\n📥 Download StaffCaller Android App:\nhttps://staffcaller.cloud/downloads/staffcaller.apk`;
                   navigator.clipboard.writeText(shareText);
                   setToast({ message: 'Login details copied to clipboard!', type: 'success' });
                 }}
