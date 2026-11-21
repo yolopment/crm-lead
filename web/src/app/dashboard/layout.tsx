@@ -184,12 +184,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Logo Brand Icon */}
           <Link
             href="/dashboard/admin"
-            className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
-            title="Lead CRM Dashboard"
+            className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-md shadow-blue-500/20 hover:scale-105 transition"
+            title="StaffCaller Dashboard"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 14L9 19L20 6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <img src="/logo.png" alt="StaffCaller" className="w-10 h-10 object-cover rounded-xl" />
           </Link>
 
           {/* + Add Lead Button with Dropdown Menu */}

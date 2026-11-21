@@ -3,8 +3,12 @@ import './globals.css';
 import { AuthProvider } from '@/lib/auth';
 
 export const metadata: Metadata = {
-  title: 'Lead CRM — Call Tracking & Lead Distribution Platform',
+  title: 'StaffCaller — Automatic Call Tracking & Sales CRM Platform',
   description: 'Production SaaS CRM for automatic phone call recording and lead synchronization.',
+  icons: {
+    icon: '/icon.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

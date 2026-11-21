@@ -2,6 +2,7 @@ package com.crmlead.companion.ui.screens
 
 import android.os.Build
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,12 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.crmlead.companion.R
 import com.crmlead.companion.data.CallEntity
 import com.crmlead.companion.sim.SimInfo
 
@@ -215,21 +218,19 @@ fun SignInScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // LeadZam Logo
+        // StaffCaller Logo
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Box(
+            Image(
+                painter = painterResource(id = R.drawable.app_logo),
+                contentDescription = "StaffCaller Logo",
                 modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(BrandBlue),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-            }
-            Spacer(modifier = Modifier.width(10.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = "StaffCaller",
                 fontSize = 24.sp,
@@ -1460,16 +1461,14 @@ fun CompanionDashboardScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
+                Image(
+                    painter = painterResource(id = R.drawable.app_logo),
+                    contentDescription = "StaffCaller Logo",
                     modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(BrandBlue),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                }
-                Spacer(modifier = Modifier.width(8.dp))
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "StaffCaller",
                     fontSize = 22.sp,

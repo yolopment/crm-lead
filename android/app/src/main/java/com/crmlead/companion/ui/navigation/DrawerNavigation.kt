@@ -1,5 +1,6 @@
 package com.crmlead.companion.ui.navigation
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,9 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.crmlead.companion.R
 import com.crmlead.companion.ui.screens.*
 
 enum class AppNavScreen {
@@ -54,20 +57,13 @@ fun LeadZamDrawerContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
+                    Image(
+                        painter = painterResource(id = R.drawable.app_logo),
+                        contentDescription = "StaffCaller Logo",
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(BrandBlue),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Phone,
-                            contentDescription = "Logo",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = "StaffCaller",

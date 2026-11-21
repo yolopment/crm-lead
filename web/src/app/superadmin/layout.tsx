@@ -90,10 +90,8 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
       {/* Mobile Top Bar */}
       <div className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-            <Shield className="w-4 h-4" />
-          </div>
-          <span className="font-bold text-white text-sm">CRM-LEAD Admin</span>
+          <img src="/logo.png" alt="StaffCaller" className="w-8 h-8 rounded-lg object-cover" />
+          <span className="font-bold text-white text-sm">StaffCaller Admin</span>
         </div>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -112,12 +110,10 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
         {/* Brand Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between">
           <Link href="/superadmin" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
-              <Shield className="w-5 h-5" />
-            </div>
+            <img src="/logo.png" alt="StaffCaller" className="w-10 h-10 rounded-xl shadow-lg shadow-blue-600/30 object-cover" />
             <div>
               <div className="font-bold text-white text-base leading-tight group-hover:text-blue-400 transition">
-                CRM-LEAD
+                StaffCaller
               </div>
               <div className="text-[11px] font-medium text-blue-400 uppercase tracking-wider">
                 Platform Admin

@@ -143,6 +143,8 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
   <meta name="description" content="StaffCaller is a production SaaS CRM for automatic call tracking, Android call recording synchronization, WhatsApp integration, and round-robin lead distribution.">
   <meta name="keywords" content="CRM, call tracking, call recording sync, sales CRM, Android call sync, lead distribution, WhatsApp CRM">
   <link rel="canonical" href="https://staffcaller.cloud/">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="apple-touch-icon" href="/logo.png">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
@@ -395,6 +397,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
 <body>
   <header>
     <a href="/" class="logo">
+      <img src="/logo.png" alt="StaffCaller" style="width: 32px; height: 32px; border-radius: 8px; vertical-align: middle; margin-right: 8px; object-fit: cover;" />
       <span>StaffCaller</span>
       <span class="logo-badge">Cloud</span>
     </a>
@@ -495,6 +498,8 @@ function renderSimplePage(title: string, content: string) {
   <title>${title} — StaffCaller Cloud</title>
   <meta name="description" content="${title} for StaffCaller Cloud CRM.">
   <link rel="canonical" href="https://staffcaller.cloud/">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="apple-touch-icon" href="/logo.png">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0f19; color: #f8fafc; padding: 2rem; max-width: 800px; margin: 0 auto; line-height: 1.6; }
     h1 { margin-bottom: 1.5rem; color: #fff; }

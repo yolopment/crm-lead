@@ -45,14 +45,13 @@ export default function LoginPage() {
       <div className="w-full max-w-[360px] relative z-10">
         {/* Logo & Brand */}
         <div className="flex flex-col items-center mb-8">
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 shadow-xl"
-            style={{ background: 'linear-gradient(135deg, #2563eb, #4f46e5)' }}
-          >
-            <Phone className="w-6 h-6 text-white" />
-          </div>
-          <h1 className="text-[22px] font-bold text-white tracking-tight">Lead CRM</h1>
-          <p className="text-sm text-white/40 mt-1">Call tracking & lead management</p>
+          <img
+            src="/logo.png"
+            alt="StaffCaller"
+            className="w-16 h-16 rounded-2xl shadow-xl shadow-blue-900/40 mb-4 object-cover"
+          />
+          <h1 className="text-[22px] font-bold text-white tracking-tight">StaffCaller</h1>
+          <p className="text-sm text-white/40 mt-1">Automatic Call Tracking & CRM Platform</p>
         </div>
 
         {/* Login Card */}

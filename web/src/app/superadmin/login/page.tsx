@@ -79,11 +79,13 @@ export default function SuperAdminLoginPage() {
       <div className="w-full max-w-md relative z-10">
         {/* Header Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 shadow-xl shadow-blue-900/30 mb-4 border border-blue-400/20">
-            <Shield className="w-8 h-8 text-white" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="StaffCaller"
+            className="w-16 h-16 rounded-2xl shadow-xl shadow-blue-900/40 mb-4 mx-auto border border-blue-400/20 object-cover"
+          />
           <h1 className="text-2xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
-            🛡️ CRM-LEAD Platform Admin
+            StaffCaller Platform Admin
           </h1>
           <p className="text-sm text-slate-400 mt-2">
             Multi-Tenant SaaS Control Center & System Governance
