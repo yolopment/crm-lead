@@ -41,7 +41,8 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   const [tokenChecked, setTokenChecked] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isLoginPage = pathname === '/superadmin/login';
+  const normalizedPath = (pathname || '').replace(/\/$/, '');
+  const isLoginPage = normalizedPath === '/superadmin/login';
 
   // Auth Guard
   useEffect(() => {
@@ -133,8 +134,8 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
           {NAV_ITEMS.map((item) => {
             const isActive =
               item.href === '/superadmin'
-                ? pathname === '/superadmin'
-                : pathname.startsWith(item.href);
+                ? normalizedPath === '/superadmin'
+                : normalizedPath.startsWith(item.href);
 
             const Icon = item.icon;
 
@@ -185,9 +186,9 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
             </span>
             <span className="text-slate-600">/</span>
             <span className="text-sm font-medium text-slate-200 capitalize">
-              {pathname === '/superadmin'
+              {normalizedPath === '/superadmin'
                 ? 'Overview'
-                : pathname.replace('/superadmin/', '').replace('-', ' ')}
+                : normalizedPath.replace('/superadmin/', '').replace('-', ' ')}
             </span>
           </div>
 
