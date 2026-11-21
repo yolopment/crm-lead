@@ -21,6 +21,7 @@ import gdriveOAuthRoutes from './routes/gdrive-oauth.routes.js';
 import billingRoutes from './routes/billing.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
 import publicRoutes from './routes/public.routes.js';
+import { authenticateSaasAdmin } from './middleware/saasAuth.js';
 import { restoreActiveWhatsAppSessions } from './services/whatsapp.service.js';
 import { initDatabase } from './services/db-init.service.js';
 
@@ -78,8 +79,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// Setup endpoint for initializing database tables & seeding
-app.get('/api/v1/superadmin/setup', async (req, res) => {
+// Authenticated setup endpoint for initializing database tables & seeding
+app.get('/api/v1/superadmin/setup', authenticateSaasAdmin, async (req, res) => {
   try {
     await initDatabase();
     res.status(200).json({ status: 'ok', message: 'Database initialized and seeded successfully' });

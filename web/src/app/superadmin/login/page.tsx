@@ -178,18 +178,6 @@ export default function SuperAdminLoginPage() {
                 )}
               </button>
             </div>
-
-            {/* Quick Credentials Info Box */}
-            <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-300">Default Root Access:</span>
-                <span className="text-[10px] text-emerald-400 font-mono">ACTIVE</span>
-              </div>
-              <div className="text-xs font-mono text-slate-300 flex items-center justify-between">
-                <span>admin@crmlead.com</span>
-                <span className="text-slate-500">SuperAdmin@123</span>
-              </div>
-            </div>
           </form>
 
           <div className="mt-6 pt-5 border-t border-slate-800 text-center text-xs text-slate-500">
