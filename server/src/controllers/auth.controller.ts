@@ -153,9 +153,88 @@ export class AuthController {
       }
 
       const { password, ...safeUser } = user;
-      res.status(200).json(safeUser);
+
+      // Compute trial days remaining
+      const org = user.organization;
+      let trialDaysRemaining: number | null = null;
+      let subscriptionStatus = org.orgStatus as string;
+
+      if (org.orgStatus === 'TRIAL' && org.trialEndsAt) {
+        const msLeft = org.trialEndsAt.getTime() - Date.now();
+        trialDaysRemaining = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+        if (trialDaysRemaining === 0) subscriptionStatus = 'EXPIRED';
+      }
+
+      res.status(200).json({
+        ...safeUser,
+        subscription: {
+          status: subscriptionStatus,
+          trialEndsAt: org.trialEndsAt,
+          trialDaysRemaining,
+          customPriceMonthly: (org as any).customPriceMonthly ?? null,
+          customPriceYearly: (org as any).customPriceYearly ?? null,
+          billingCycle: (org as any).billingCycle ?? null,
+          maxUsers: org.maxUsers,
+          maxLeads: org.maxLeads,
+        },
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to fetch user profile.' });
+    }
+  }
+
+  /**
+   * GET /api/v1/auth/subscription-status
+   * Used by the Android companion app to show trial countdown
+   */
+  static async getSubscriptionStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const org: any = await prisma.organization.findUnique({
+        where: { id: req.user!.orgId },
+        select: {
+          id: true,
+          name: true,
+          orgStatus: true,
+          trialEndsAt: true,
+          maxUsers: true,
+          maxLeads: true,
+          storageQuotaBytes: true,
+          storageUsedBytes: true,
+          customPriceMonthly: true,
+          customPriceYearly: true,
+          billingCycle: true,
+          activatedAt: true,
+        } as any,
+      });
+
+      if (!org) {
+        res.status(404).json({ error: 'Organization not found.' });
+        return;
+      }
+
+      let trialDaysRemaining: number | null = null;
+      let status = org.orgStatus as string;
+
+      if (org.orgStatus === 'TRIAL' && org.trialEndsAt) {
+        const msLeft = (org.trialEndsAt as Date).getTime() - Date.now();
+        trialDaysRemaining = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+        if (trialDaysRemaining === 0) status = 'EXPIRED';
+      }
+
+      res.status(200).json({
+        status,
+        trialEndsAt: (org as any).trialEndsAt,
+        trialDaysRemaining,
+        customPriceMonthly: (org as any).customPriceMonthly ?? null,
+        customPriceYearly: (org as any).customPriceYearly ?? null,
+        billingCycle: (org as any).billingCycle ?? null,
+        maxUsers: org.maxUsers,
+        maxLeads: org.maxLeads,
+        storageQuotaBytes: Number(org.storageQuotaBytes),
+        storageUsedBytes: Number(org.storageUsedBytes),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to fetch subscription status.' });
     }
   }
 

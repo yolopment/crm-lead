@@ -34,8 +34,30 @@ export const config = {
   // Client-Facing Google Drive OAuth Configuration (Per-Client 15 GB Free Drive)
   googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || '',
   googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',
-  googleOAuthRedirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI || 'http://localhost:5001/api/v1/integrations/gdrive/callback',
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+  get googleOAuthRedirectUri(): string {
+    const raw = (process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim();
+    if (raw.includes('api.staffcaller.cloud')) {
+      return raw.replace('api.staffcaller.cloud', 'staffcaller.cloud');
+    }
+    if (process.env.NODE_ENV === 'production') {
+      if (!raw || raw.includes('localhost') || raw.includes('127.0.0.1')) {
+        return 'https://staffcaller.cloud/api/v1/integrations/gdrive/callback';
+      }
+    }
+    return raw || 'https://staffcaller.cloud/api/v1/integrations/gdrive/callback';
+  },
+  get frontendUrl(): string {
+    const raw = (process.env.FRONTEND_URL || '').trim();
+    if (raw.includes('api.staffcaller.cloud')) {
+      return raw.replace('api.staffcaller.cloud', 'staffcaller.cloud');
+    }
+    if (process.env.NODE_ENV === 'production') {
+      if (!raw || raw.includes('localhost') || raw.includes('127.0.0.1')) {
+        return 'https://staffcaller.cloud';
+      }
+    }
+    return raw || 'https://staffcaller.cloud';
+  },
 
   // Razorpay Payment Gateway Configuration (Phase 4: Subscription & Billing)
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
