@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma.js';
+import { Role } from '@prisma/client';
 
 export const listFollowups = async (req: Request, res: Response) => {
   try {
@@ -15,7 +16,8 @@ export const listFollowups = async (req: Request, res: Response) => {
       search = '',
     } = req.query;
 
-    const isTeam = scope === 'team';
+    const isAgent = req.user?.role === Role.AGENT;
+    const isTeam = !isAgent && scope === 'team';
     const isOpen = status !== 'completed';
 
     // Now & Today Date boundaries
@@ -266,11 +268,22 @@ export const createFollowup = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid scheduledAt date format' });
     }
 
+    const isAgent = req.user?.role === Role.AGENT;
+    if (isAgent) {
+      const assignedLead = await prisma.lead.findFirst({
+        where: { id: leadId, orgId, assignedToId: currentUserId! },
+      });
+      if (!assignedLead) {
+        return res.status(403).json({ error: 'Access denied: You can only create follow-ups for your assigned leads.' });
+      }
+    }
+    const finalAssignedToId = isAgent ? currentUserId! : (assignedToId || currentUserId!);
+
     const followUp = await prisma.followUp.create({
       data: {
         orgId,
         leadId,
-        assignedToId: assignedToId || currentUserId!,
+        assignedToId: finalAssignedToId,
         type: type.toUpperCase() as any,
         title: title || `${type === 'CALL' ? 'Call' : type === 'TODO' ? 'Task' : 'Follow-up'} for lead`,
         note: note || null,
@@ -324,6 +337,10 @@ export const completeFollowup = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Follow-up not found' });
     }
 
+    if (req.user?.role === Role.AGENT && followUp.assignedToId !== currentUserId) {
+      return res.status(403).json({ error: 'Access denied: You can only complete your own follow-ups.' });
+    }
+
     const updated = await prisma.followUp.update({
       where: { id },
       data: {
@@ -373,6 +390,10 @@ export const rescheduleFollowup = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Follow-up not found' });
     }
 
+    if (req.user?.role === Role.AGENT && followUp.assignedToId !== currentUserId) {
+      return res.status(403).json({ error: 'Access denied: You can only reschedule your own follow-ups.' });
+    }
+
     const updated = await prisma.followUp.update({
       where: { id },
       data: {
@@ -406,12 +427,25 @@ export const rescheduleFollowup = async (req: Request, res: Response) => {
 export const deleteFollowup = async (req: Request, res: Response) => {
   try {
     const orgId = req.user?.orgId;
+    const currentUserId = req.user?.id;
     const { id } = req.params;
 
     if (!orgId) return res.status(400).json({ error: 'Missing organization' });
 
-    await prisma.followUp.deleteMany({
+    const followUp = await prisma.followUp.findFirst({
       where: { id, orgId },
+    });
+
+    if (!followUp) {
+      return res.status(404).json({ error: 'Follow-up not found' });
+    }
+
+    if (req.user?.role === Role.AGENT && followUp.assignedToId !== currentUserId) {
+      return res.status(403).json({ error: 'Access denied: You can only delete your own follow-ups.' });
+    }
+
+    await prisma.followUp.delete({
+      where: { id },
     });
 
     return res.json({ success: true, message: 'Follow-up deleted' });

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { streamAudioFile, processAndSaveAudio, streamAudioOrRedirect } from '../services/storage.service.js';
-import { CallDirection, CallStatus, LeadStage } from '@prisma/client';
+import { CallDirection, CallStatus, LeadStage, Role } from '@prisma/client';
 import path from 'path';
 
 export class CallController {
@@ -178,6 +178,11 @@ export class CallController {
 
       if (!call) {
         res.status(404).json({ error: 'Call record not found.' });
+        return;
+      }
+
+      if (req.user!.role === Role.AGENT && call.userId !== req.user!.id) {
+        res.status(403).json({ error: 'Access denied: You can only upload audio for your own calls.' });
         return;
       }
 
@@ -367,6 +372,12 @@ export class CallController {
         return;
       }
 
+      // Restrict audio playback: Agents can ONLY listen to their own calls
+      if (req.user!.role === Role.AGENT && call.userId !== req.user!.id) {
+        res.status(403).json({ error: 'Forbidden: You cannot access audio recordings from another agent.' });
+        return;
+      }
+
       await streamAudioOrRedirect(call.audioPath, req, res);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Error streaming audio recording.' });
@@ -379,6 +390,7 @@ export class CallController {
   static async getCalls(req: Request, res: Response): Promise<void> {
     try {
       const orgId = req.user!.orgId;
+      const isAgent = req.user!.role === Role.AGENT;
       const {
         agentId,
         direction,
@@ -391,7 +403,10 @@ export class CallController {
 
       const whereClause: any = { orgId };
 
-      if (agentId && agentId !== 'all') {
+      if (isAgent) {
+        // Enforce data isolation: Agents ONLY see calls made by themselves
+        whereClause.userId = req.user!.id;
+      } else if (agentId && agentId !== 'all') {
         whereClause.userId = String(agentId);
       }
 
@@ -486,7 +501,9 @@ export class CallController {
       const { agentId, range = 'last_7_days' } = req.query;
 
       const whereClause: any = { orgId };
-      if (agentId && agentId !== 'all') {
+      if (req.user!.role === Role.AGENT) {
+        whereClause.userId = req.user!.id;
+      } else if (agentId && agentId !== 'all') {
         whereClause.userId = String(agentId);
       }
 
@@ -540,7 +557,9 @@ export class CallController {
       const { range = 'last_7_days', agentId } = req.query;
 
       const whereClause: any = { orgId };
-      if (agentId && agentId !== 'all') {
+      if (req.user!.role === Role.AGENT) {
+        whereClause.userId = req.user!.id;
+      } else if (agentId && agentId !== 'all') {
         whereClause.userId = String(agentId);
       }
 
@@ -619,6 +638,11 @@ export class CallController {
         return;
       }
 
+      if (req.user!.role === Role.AGENT && call.userId !== req.user!.id) {
+        res.status(403).json({ error: 'Access denied: You can only set outcomes on your own calls.' });
+        return;
+      }
+
       const updated = await prisma.call.update({
         where: { id: call.id },
         data: {
@@ -650,6 +674,11 @@ export class CallController {
 
       if (!call) {
         res.status(404).json({ error: 'Call not found.' });
+        return;
+      }
+
+      if (req.user!.role === Role.AGENT && call.userId !== req.user!.id) {
+        res.status(403).json({ error: 'Access denied: You can only set outcomes on your own calls.' });
         return;
       }
 
@@ -729,13 +758,18 @@ export class CallController {
       else if (slaThreshold === '24h') slaThresholdMs = 24 * 60 * 60 * 1000;
 
       // 1. Fetch all inbound missed calls within lookBack window
+      const missedWhere: any = {
+        orgId,
+        direction: CallDirection.INBOUND,
+        status: CallStatus.MISSED,
+        startedAt: { gte: lookBackDate },
+      };
+      if (req.user!.role === Role.AGENT) {
+        missedWhere.userId = req.user!.id;
+      }
+
       const missedCalls = await prisma.call.findMany({
-        where: {
-          orgId,
-          direction: CallDirection.INBOUND,
-          status: CallStatus.MISSED,
-          startedAt: { gte: lookBackDate },
-        },
+        where: missedWhere,
         include: {
           user: {
             select: { id: true, name: true, email: true },
@@ -893,6 +927,11 @@ export class CallController {
         return;
       }
 
+      if (req.user!.role === Role.AGENT && call.userId !== req.user!.id) {
+        res.status(403).json({ error: 'Access denied: You can only resolve your own callbacks.' });
+        return;
+      }
+
       const existingTags = call.tags ? call.tags.split(',') : [];
       if (!existingTags.includes('resolved_callback')) {
         existingTags.push('resolved_callback');
@@ -921,6 +960,10 @@ export class CallController {
       const { phoneNumber, targetUserId } = req.body;
       if (!phoneNumber) {
         res.status(400).json({ error: 'Phone number is required.' });
+        return;
+      }
+      if (req.user!.role === Role.AGENT && targetUserId && targetUserId !== userId) {
+        res.status(403).json({ error: 'Access denied: Agents cannot request dials on behalf of other users.' });
         return;
       }
       const targetUser = targetUserId || userId;

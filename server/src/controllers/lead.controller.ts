@@ -1,22 +1,26 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { LeadDistributionService } from '../services/leadDistribution.service.js';
-import { LeadStage } from '@prisma/client';
+import { LeadStage, Role } from '@prisma/client';
 
 export class LeadController {
   static async listLeads(req: Request, res: Response): Promise<void> {
     try {
       const orgId = req.user!.orgId;
+      const isAgent = req.user!.role === Role.AGENT;
       const { stage, assignedToId, search, page = '1', limit = '50' } = req.query;
 
       const whereClause: any = { orgId };
 
-      if (stage && stage !== 'all') {
-        whereClause.stage = stage as LeadStage;
+      if (isAgent) {
+        // Enforce data isolation: Agents ONLY see leads assigned to themselves
+        whereClause.assignedToId = req.user!.id;
+      } else if (assignedToId && assignedToId !== 'all') {
+        whereClause.assignedToId = String(assignedToId);
       }
 
-      if (assignedToId && assignedToId !== 'all') {
-        whereClause.assignedToId = String(assignedToId);
+      if (stage && stage !== 'all') {
+        whereClause.stage = stage as LeadStage;
       }
 
       if (search) {
@@ -96,8 +100,9 @@ export class LeadController {
 
       const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
 
-      // Assign to specified agent or next available agent who is NOT on leave
-      let assignedToId = requestedAssignedTo;
+      // If creator is an AGENT, automatically assign lead to themselves
+      const isAgent = req.user!.role === Role.AGENT;
+      let assignedToId = isAgent ? req.user!.id : requestedAssignedTo;
       if (!assignedToId || assignedToId === 'unassigned') {
         assignedToId = await LeadDistributionService.assignNextAvailableAgent(orgId);
       }
@@ -142,9 +147,15 @@ export class LeadController {
     try {
       const { leadId } = req.params;
       const orgId = req.user!.orgId;
+      const isAgent = req.user!.role === Role.AGENT;
+
+      const whereClause: any = { id: leadId, orgId };
+      if (isAgent) {
+        whereClause.assignedToId = req.user!.id;
+      }
 
       const lead = await prisma.lead.findFirst({
-        where: { id: leadId, orgId },
+        where: whereClause,
         include: {
           assignedTo: { select: { id: true, name: true, email: true } },
           calls: {
@@ -302,6 +313,11 @@ export class LeadController {
         return;
       }
 
+      if (req.user!.role === Role.AGENT && lead.assignedToId !== userId) {
+        res.status(403).json({ error: 'Forbidden: You can only add notes to your assigned leads.' });
+        return;
+      }
+
       const note = await prisma.note.create({
         data: {
           leadId: lead.id,
@@ -322,6 +338,12 @@ export class LeadController {
   static async bulkUploadLeads(req: Request, res: Response): Promise<void> {
     try {
       const orgId = req.user!.orgId;
+
+      if (req.user!.role === Role.AGENT) {
+        res.status(403).json({ error: 'Forbidden: Agents cannot bulk upload leads.' });
+        return;
+      }
+
       const { leads } = req.body;
 
       if (!Array.isArray(leads) || leads.length === 0) {
@@ -363,6 +385,11 @@ export class LeadController {
       const { leadId } = req.params;
       const orgId = req.user!.orgId;
 
+      if (req.user!.role === Role.AGENT) {
+        res.status(403).json({ error: 'Forbidden: Agents cannot delete leads.' });
+        return;
+      }
+
       await prisma.lead.deleteMany({
         where: { id: leadId, orgId },
       });
@@ -378,10 +405,21 @@ export class LeadController {
       const { leadId } = req.params;
       const { stage } = req.body;
       const orgId = req.user!.orgId;
+      const isAgent = req.user!.role === Role.AGENT;
 
       if (!Object.values(LeadStage).includes(stage)) {
         res.status(400).json({ error: 'Invalid lead stage.' });
         return;
+      }
+
+      if (isAgent) {
+        const lead = await prisma.lead.findFirst({
+          where: { id: leadId, orgId, assignedToId: req.user!.id },
+        });
+        if (!lead) {
+          res.status(403).json({ error: 'Forbidden: You can only update stages for your assigned leads.' });
+          return;
+        }
       }
 
       const updated = await prisma.lead.update({
@@ -400,6 +438,21 @@ export class LeadController {
       const { leadId } = req.params;
       const { fullName, phone, email, tags, stage, assignedToId } = req.body;
       const orgId = req.user!.orgId;
+      const isAgent = req.user!.role === Role.AGENT;
+
+      if (isAgent) {
+        const lead = await prisma.lead.findFirst({
+          where: { id: leadId, orgId, assignedToId: req.user!.id },
+        });
+        if (!lead) {
+          res.status(403).json({ error: 'Forbidden: You can only modify your assigned leads.' });
+          return;
+        }
+        if (assignedToId && assignedToId !== req.user!.id) {
+          res.status(403).json({ error: 'Forbidden: Agents cannot reassign leads.' });
+          return;
+        }
+      }
 
       const dataToUpdate: any = {};
       if (fullName !== undefined) dataToUpdate.fullName = fullName;
@@ -407,7 +460,7 @@ export class LeadController {
       if (email !== undefined) dataToUpdate.email = email;
       if (tags !== undefined) dataToUpdate.tags = tags;
       if (stage !== undefined && Object.values(LeadStage).includes(stage)) dataToUpdate.stage = stage;
-      if (assignedToId !== undefined) dataToUpdate.assignedToId = assignedToId;
+      if (!isAgent && assignedToId !== undefined) dataToUpdate.assignedToId = assignedToId;
 
       const updated = await prisma.lead.update({
         where: { id: leadId },
@@ -428,10 +481,11 @@ export class LeadController {
     try {
       const orgId = req.user!.orgId;
       const userId = req.user!.id;
+      const isAgent = req.user!.role === Role.AGENT;
       const { scope = 'mine' } = req.query;
 
       const whereClause: any = { orgId };
-      if (scope === 'mine') {
+      if (isAgent || scope === 'mine') {
         whereClause.assignedToId = userId;
       }
 

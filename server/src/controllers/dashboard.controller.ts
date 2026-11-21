@@ -1,14 +1,22 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma.js';
+import { Role } from '@prisma/client';
 
 export class DashboardController {
   static async getStats(req: Request, res: Response): Promise<void> {
     try {
       const orgId = req.user!.orgId;
+      const isAgent = req.user!.role === Role.AGENT;
+      const userId = req.user!.id;
 
       const now = new Date();
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      // Scoping conditions based on user role
+      const leadBaseWhere = isAgent ? { orgId, assignedToId: userId } : { orgId };
+      const callBaseWhere = isAgent ? { orgId, userId } : { orgId };
+      const followupBaseWhere = isAgent ? { orgId, assignedToId: userId } : { orgId };
 
       // Parallel aggregation queries
       const [
@@ -28,39 +36,39 @@ export class DashboardController {
         teamMembers,
         pairedDevices,
       ] = await Promise.all([
-        prisma.lead.count({ where: { orgId } }),
-        prisma.lead.count({ where: { orgId, createdAt: { gte: sevenDaysAgo } } }),
-        prisma.lead.count({ where: { orgId, createdAt: { gte: startOfToday } } }),
-        prisma.call.count({ where: { orgId } }),
-        prisma.call.count({ where: { orgId, status: 'CONNECTED' } }),
-        prisma.call.count({ where: { orgId, createdAt: { gte: startOfToday } } }),
+        prisma.lead.count({ where: leadBaseWhere }),
+        prisma.lead.count({ where: { ...leadBaseWhere, createdAt: { gte: sevenDaysAgo } } }),
+        prisma.lead.count({ where: { ...leadBaseWhere, createdAt: { gte: startOfToday } } }),
+        prisma.call.count({ where: callBaseWhere }),
+        prisma.call.count({ where: { ...callBaseWhere, status: 'CONNECTED' } }),
+        prisma.call.count({ where: { ...callBaseWhere, createdAt: { gte: startOfToday } } }),
         prisma.followUp.count({
           where: {
-            orgId,
+            ...followupBaseWhere,
             status: 'PENDING',
             scheduledAt: { gte: startOfToday, lt: new Date(startOfToday.getTime() + 86400000) },
           },
         }),
         prisma.followUp.count({
           where: {
-            orgId,
+            ...followupBaseWhere,
             status: 'PENDING',
             scheduledAt: { lt: startOfToday },
           },
         }),
-        prisma.form.count({ where: { orgId } }),
+        isAgent ? Promise.resolve(0) : prisma.form.count({ where: { orgId } }),
         prisma.lead.groupBy({
           by: ['stage'],
-          where: { orgId },
+          where: leadBaseWhere,
           _count: { id: true },
         }),
         prisma.lead.groupBy({
           by: ['source'],
-          where: { orgId },
+          where: leadBaseWhere,
           _count: { id: true },
         }),
         prisma.lead.findMany({
-          where: { orgId },
+          where: leadBaseWhere,
           orderBy: { createdAt: 'desc' },
           take: 6,
           select: {
@@ -74,7 +82,7 @@ export class DashboardController {
           },
         }),
         prisma.call.findMany({
-          where: { orgId },
+          where: callBaseWhere,
           orderBy: { createdAt: 'desc' },
           take: 6,
           include: {
@@ -82,22 +90,24 @@ export class DashboardController {
             user: { select: { name: true } },
           },
         }),
-        prisma.user.findMany({
-          where: { orgId },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            isOnLeave: true,
-            deviceToken: true,
-            _count: {
-              select: { calls: true, assignedLeads: true },
-            },
-          },
-        }),
+        isAgent
+          ? Promise.resolve([])
+          : prisma.user.findMany({
+              where: { orgId },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                isOnLeave: true,
+                deviceToken: true,
+                _count: {
+                  select: { calls: true, assignedLeads: true },
+                },
+              },
+            }),
         prisma.device.findMany({
-          where: { orgId },
+          where: isAgent ? { orgId, userId } : { orgId },
           take: 5,
           orderBy: { lastSyncAt: 'desc' },
         }),

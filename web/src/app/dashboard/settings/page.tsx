@@ -64,7 +64,15 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, org, refreshUser } = useAuth();
+  const isAgent = user?.role === 'AGENT';
+
   const [activeSection, setActiveSection] = useState<NavSection>('profile');
+
+  useEffect(() => {
+    if (isAgent && activeSection !== 'profile') {
+      setActiveSection('profile');
+    }
+  }, [isAgent, activeSection]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -328,72 +336,79 @@ export default function SettingsPage() {
                 <User className="w-3.5 h-3.5" />
                 <span>Profile</span>
               </button>
-              <button
-                onClick={() => setActiveSection('team')}
-                className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
-                  activeSection === 'team' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>Users & Devices</span>
-              </button>
-              <button
-                onClick={() => setActiveSection('storage')}
-                className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
-                  activeSection === 'storage' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <HardDrive className="w-3.5 h-3.5" />
-                <span>Google Drive Storage</span>
-              </button>
+
+              {!isAgent && (
+                <>
+                  <button
+                    onClick={() => setActiveSection('team')}
+                    className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
+                      activeSection === 'team' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>Users & Devices</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveSection('storage')}
+                    className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
+                      activeSection === 'storage' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <HardDrive className="w-3.5 h-3.5" />
+                    <span>Google Drive Storage</span>
+                  </button>
+                </>
+              )}
             </div>
 
-            {/* Customization Group matching Screenshots 10-14 */}
-            <div className="space-y-1 pt-3 border-t border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 block">
-                Customization
-              </span>
+            {/* Customization Group matching Screenshots 10-14 (Admins only) */}
+            {!isAgent && (
+              <div className="space-y-1 pt-3 border-t border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 block">
+                  Customization
+                </span>
 
-              <button
-                onClick={() => setActiveSection('lead-fields')}
-                className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
-                  activeSection === 'lead-fields' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <List className="w-3.5 h-3.5" />
-                <span>Lead Fields</span>
-              </button>
+                <button
+                  onClick={() => setActiveSection('lead-fields')}
+                  className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
+                    activeSection === 'lead-fields' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Lead Fields</span>
+                </button>
 
-              <button
-                onClick={() => setActiveSection('lead-stages')}
-                className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
-                  activeSection === 'lead-stages' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <GitFork className="w-3.5 h-3.5" />
-                <span>Lead Stages</span>
-              </button>
+                <button
+                  onClick={() => setActiveSection('lead-stages')}
+                  className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
+                    activeSection === 'lead-stages' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <GitFork className="w-3.5 h-3.5" />
+                  <span>Lead Stages</span>
+                </button>
 
-              <button
-                onClick={() => setActiveSection('call-dispositions')}
-                className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
-                  activeSection === 'call-dispositions' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <PhoneCall className="w-3.5 h-3.5" />
-                <span>Call Dispositions</span>
-              </button>
+                <button
+                  onClick={() => setActiveSection('call-dispositions')}
+                  className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
+                    activeSection === 'call-dispositions' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>Call Dispositions</span>
+                </button>
 
-              <button
-                onClick={() => setActiveSection('revenue-products')}
-                className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
-                  activeSection === 'revenue-products' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Package className="w-3.5 h-3.5" />
-                <span>Products</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => setActiveSection('revenue-products')}
+                  className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition ${
+                    activeSection === 'revenue-products' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Products</span>
+                </button>
+              </div>
+            )}
           </div>
         </aside>
 

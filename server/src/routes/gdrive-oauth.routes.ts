@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { GDriveOAuthController } from '../controllers/gdrive-oauth.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
+import { Role } from '@prisma/client';
 
 const router = Router();
 
@@ -8,10 +9,11 @@ const router = Router();
 router.get('/callback', GDriveOAuthController.oauthCallback);
 
 // Protected endpoints for client organization admins
-router.get('/auth-url', authenticate, GDriveOAuthController.getAuthUrl);
-router.get('/status', authenticate, GDriveOAuthController.getStatus);
-router.post('/destination', authenticate, GDriveOAuthController.setDestination);
-router.post('/disconnect', authenticate, GDriveOAuthController.disconnect);
-router.post('/simulate-connect', authenticate, GDriveOAuthController.simulateConnect);
+router.use(authenticate);
+router.get('/auth-url', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), GDriveOAuthController.getAuthUrl);
+router.get('/status', GDriveOAuthController.getStatus);
+router.post('/destination', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), GDriveOAuthController.setDestination);
+router.post('/disconnect', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), GDriveOAuthController.disconnect);
+router.post('/simulate-connect', requireRole([Role.ADMIN, Role.SUPER_ADMIN]), GDriveOAuthController.simulateConnect);
 
 export default router;

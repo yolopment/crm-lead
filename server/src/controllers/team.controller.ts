@@ -54,6 +54,34 @@ export class TeamController {
       ]);
 
       // Format team members and compute individual call statistics
+      const isAgent = req.user!.role === Role.AGENT;
+      const currentUserId = req.user!.id;
+
+      if (isAgent) {
+        const sanitizedMembers = members.map((member) => ({
+          id: member.id,
+          name: member.name,
+          email: member.id === currentUserId ? member.email : '',
+          phone: member.id === currentUserId ? member.phone : '',
+          role: member.role,
+          isOnLeave: member.isOnLeave,
+          createdAt: member.createdAt,
+          hasPairedDevice: member.id === currentUserId ? member.devices.length > 0 : false,
+          devices: member.id === currentUserId ? member.devices : [],
+          deviceSummary: member.id === currentUserId && member.devices.length > 0
+            ? `${member.devices.length} device · ${member.devices[0].deviceName || 'Android'}`
+            : null,
+          deviceToken: member.id === currentUserId ? member.deviceToken : null,
+          stats: null,
+        }));
+
+        res.status(200).json({
+          members: sanitizedMembers,
+          pendingInvitations: [],
+        });
+        return;
+      }
+
       const formattedMembers = members.map((member) => {
         const totalCalls = member.calls.length;
         const connectedCalls = member.calls.filter((c) => c.status === CallStatus.CONNECTED).length;

@@ -58,6 +58,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
 
+  const isAgent = user?.role === 'AGENT';
+
+  useEffect(() => {
+    if (user && user.role === 'AGENT') {
+      const restrictedPaths = ['/dashboard/reports', '/dashboard/forms', '/dashboard/integrations'];
+      if (restrictedPaths.some((p) => pathname.startsWith(p))) {
+        router.replace('/dashboard/admin');
+      }
+    }
+  }, [user, pathname, router]);
+
   // Check if session is an impersonated support session
   const [isImpersonated, setIsImpersonated] = useState(false);
   useEffect(() => {
@@ -166,10 +177,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const currentPageLabel = (() => {
     const found = NAV_ITEMS.find((n) => pathname.startsWith(n.href));
-    if (found) return found.label;
+    if (found) {
+      if (isAgent && found.href === '/dashboard/leads') return 'My Leads';
+      if (isAgent && found.href === '/dashboard/calls') return 'My Calls';
+      return found.label;
+    }
     const seg = pathname.split('/').filter(Boolean).pop() || '';
     return seg.replace(/-/g, ' ');
   })();
+
+  const filteredNavItems = NAV_ITEMS.filter((item) => {
+    if (isAgent) {
+      if (item.href === '/dashboard/reports' || item.href === '/dashboard/forms' || item.href === '/dashboard/integrations') {
+        return false;
+      }
+    }
+    return true;
+  }).map((item) => {
+    if (isAgent) {
+      if (item.href === '/dashboard/leads') return { ...item, label: 'My Leads' };
+      if (item.href === '/dashboard/calls') return { ...item, label: 'My Calls' };
+    }
+    return item;
+  });
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-800">
@@ -214,33 +244,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Users className="w-3.5 h-3.5 text-blue-600" />
                   <span>Add Single Lead</span>
                 </button>
-                <button
-                  onClick={() => {
-                    setShowAddMenu(false);
-                    router.push('/dashboard/leads?action=bulk-upload');
-                  }}
-                  className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
-                >
-                  <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Bulk Upload (CSV / XLSX)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowAddMenu(false);
-                    router.push('/dashboard/integrations');
-                  }}
-                  className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Add from Integration</span>
-                </button>
+                {!isAgent && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowAddMenu(false);
+                        router.push('/dashboard/leads?action=bulk-upload');
+                      }}
+                      className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Bulk Upload (CSV / XLSX)</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddMenu(false);
+                        router.push('/dashboard/integrations');
+                      }}
+                      className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Add from Integration</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
 
           {/* Navigation Items */}
           <nav className="flex flex-col gap-1 w-full px-2 overflow-y-auto no-scrollbar max-h-[calc(100vh-220px)]">
-            {NAV_ITEMS.map((item) => {
+            {filteredNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = !item.isExternal && pathname.startsWith(item.href);
 
@@ -317,8 +351,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Right Status Actions */}
           <div className="flex items-center gap-2.5">
-            {/* Trial Badge — Dynamic countdown */}
-            {isTrial && (
+            {/* Trial Badge — Dynamic countdown (Admins only) */}
+            {!isAgent && isTrial && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[11px] font-semibold border border-amber-200">
                 <Clock className="w-3 h-3 text-amber-500" />
                 <span>Trial {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} left</span>

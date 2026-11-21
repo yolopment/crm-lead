@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { FormController } from '../controllers/form.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
+import { Role } from '@prisma/client';
 
 const router = Router();
 
@@ -8,8 +9,10 @@ const router = Router();
 router.get('/public/:slug', FormController.getPublicForm);
 router.post('/public/:slug/submit', FormController.submitForm);
 
-// Authenticated management routes
+// Authenticated management routes (Admins & Super Admins only)
 router.use(authenticate);
+router.use(requireRole([Role.ADMIN, Role.SUPER_ADMIN]));
+
 router.get('/', FormController.listForms);
 router.get('/:formId', FormController.getForm);
 router.get('/:formId/submissions', FormController.getSubmissions);

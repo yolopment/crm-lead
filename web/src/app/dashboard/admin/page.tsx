@@ -126,6 +126,8 @@ export default function AdminDashboardPage() {
     LOST: { label: 'Lost', color: 'text-rose-700', bg: 'bg-rose-500' },
   };
 
+  const isAgent = user?.role === 'AGENT';
+
   return (
     <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-200">
       {/* ─── Top Executive Header ─── */}
@@ -136,12 +138,14 @@ export default function AdminDashboardPage() {
               <Sparkles className="w-4 h-4" />
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Admin Dashboard
+              {isAgent ? 'Agent Dashboard' : 'Admin Dashboard'}
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {getGreeting()}, <span className="font-semibold text-slate-700">{user?.name || 'Aftab Sk'}</span>.
-            Here is your live team activity and sales pipeline.
+            {isAgent
+              ? ' Here is your assigned leads, scheduled follow-ups, and live call activity.'
+              : ' Here is your live team activity and sales pipeline.'}
           </p>
         </div>
 
@@ -156,14 +160,16 @@ export default function AdminDashboardPage() {
             <span>Add Lead</span>
           </Link>
 
-          {/* Quick Create Form */}
-          <Link
-            href="/dashboard/forms/builder"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition shadow-xs"
-          >
-            <FileText className="w-3.5 h-3.5 text-blue-600" />
-            <span>New Form</span>
-          </Link>
+          {/* Quick Create Form (Admins only) */}
+          {!isAgent && (
+            <Link
+              href="/dashboard/forms/builder"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition shadow-xs"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-600" />
+              <span>New Form</span>
+            </Link>
+          )}
 
           {/* Refresh Button */}
           <button
@@ -179,14 +185,14 @@ export default function AdminDashboardPage() {
 
       {/* ─── 4 Primary KPI Cards ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* 1. Total Leads */}
+        {/* 1. Total Leads / My Leads */}
         <Link
           href="/dashboard/leads"
           className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-blue-300 hover:shadow-sm transition group"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Leads
+              {isAgent ? 'My Assigned Leads' : 'Total Leads'}
             </span>
             <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Users className="w-4 h-4" />
@@ -209,14 +215,14 @@ export default function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* 2. Connected Calls */}
+        {/* 2. Connected Calls / My Calls */}
         <Link
           href="/dashboard/calls"
           className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-emerald-300 hover:shadow-sm transition group"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Connected Calls
+              {isAgent ? 'My Connected Calls' : 'Connected Calls'}
             </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <PhoneCall className="w-4 h-4" />
@@ -245,7 +251,7 @@ export default function AdminDashboardPage() {
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Follow-ups Today
+              {isAgent ? 'My Follow-ups' : 'Follow-ups Today'}
             </span>
             <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Clock className="w-4 h-4" />
@@ -267,41 +273,71 @@ export default function AdminDashboardPage() {
             )}
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Scheduled calls & team tasks</span>
+            <span>Scheduled calls & tasks</span>
             <span className="text-amber-600 font-semibold group-hover:underline flex items-center gap-0.5">
               Schedule <ChevronRight className="w-3 h-3" />
             </span>
           </div>
         </Link>
 
-        {/* 4. Active Forms & Ingestion */}
-        <Link
-          href="/dashboard/forms"
-          className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-indigo-300 hover:shadow-sm transition group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Lead Capture Forms
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <FileText className="w-4 h-4" />
+        {/* 4. Active Forms (Admin) or Connect Rate / Total Calls (Agent) */}
+        {isAgent ? (
+          <Link
+            href="/dashboard/calls"
+            className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-indigo-300 hover:shadow-sm transition group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                My Total Calls
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <TrendingUp className="w-4 h-4" />
+              </div>
             </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900">
-              {stats.totalForms}
-            </span>
-            <span className="text-xs text-indigo-600 font-semibold">
-              Live & active
-            </span>
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Round-robin auto assigned</span>
-            <span className="text-indigo-600 font-semibold group-hover:underline flex items-center gap-0.5">
-              Manage forms <ChevronRight className="w-3 h-3" />
-            </span>
-          </div>
-        </Link>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold text-slate-900">
+                {stats.totalCalls}
+              </span>
+              <span className="text-xs text-indigo-600 font-semibold">
+                {stats.connectRate}% connected
+              </span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Synchronized via companion</span>
+              <span className="text-indigo-600 font-semibold group-hover:underline flex items-center gap-0.5">
+                View history <ChevronRight className="w-3 h-3" />
+              </span>
+            </div>
+          </Link>
+        ) : (
+          <Link
+            href="/dashboard/forms"
+            className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-indigo-300 hover:shadow-sm transition group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Lead Capture Forms
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <FileText className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold text-slate-900">
+                {stats.totalForms}
+              </span>
+              <span className="text-xs text-indigo-600 font-semibold">
+                Live & active
+              </span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Round-robin auto assigned</span>
+              <span className="text-indigo-600 font-semibold group-hover:underline flex items-center gap-0.5">
+                Manage forms <ChevronRight className="w-3 h-3" />
+              </span>
+            </div>
+          </Link>
+        )}
       </div>
 
       {/* ─── Middle Section: Pipeline Funnel & Sources Breakdown ─── */}
@@ -310,8 +346,12 @@ export default function AdminDashboardPage() {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Lead Pipeline & Stages</h3>
-              <p className="text-xs text-slate-500">Live conversion funnel across active deals</p>
+              <h3 className="text-base font-bold text-slate-900">
+                {isAgent ? 'My Lead Pipeline & Stages' : 'Lead Pipeline & Stages'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {isAgent ? 'Live conversion funnel for your assigned deals' : 'Live conversion funnel across active deals'}
+              </p>
             </div>
             <Link
               href="/dashboard/leads"
@@ -358,12 +398,14 @@ export default function AdminDashboardPage() {
               <h3 className="text-base font-bold text-slate-900">Lead Sources</h3>
               <p className="text-xs text-slate-500">Where inquiries are arriving from</p>
             </div>
-            <Link
-              href="/dashboard/integrations"
-              className="text-xs font-bold text-blue-600 hover:underline"
-            >
-              Integrations →
-            </Link>
+            {!isAgent && (
+              <Link
+                href="/dashboard/integrations"
+                className="text-xs font-bold text-blue-600 hover:underline"
+              >
+                Integrations →
+              </Link>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -420,12 +462,16 @@ export default function AdminDashboardPage() {
 
       {/* ─── Bottom Section: Recent Activity Ticker & Team Status ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Leads & Calls Activity (2 Cols) */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+        {/* Recent Leads & Calls Activity (2 Cols for Admin, Full 3 Cols for Agent) */}
+        <div className={`${isAgent ? 'lg:col-span-3' : 'lg:col-span-2'} bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4`}>
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Recent Live Activity</h3>
-              <p className="text-xs text-slate-500">Real-time incoming leads and recorded phone calls</p>
+              <h3 className="text-base font-bold text-slate-900">
+                {isAgent ? 'My Recent Live Activity' : 'Recent Live Activity'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {isAgent ? 'Your assigned leads and recorded phone calls' : 'Real-time incoming leads and recorded phone calls'}
+              </p>
             </div>
             <Link
               href="/dashboard/leads"
@@ -479,87 +525,91 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Team Leaderboard (1 Col) */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Team Performance</h3>
-              <p className="text-xs text-slate-500">Live agent distribution</p>
+        {/* Team Leaderboard (1 Col, Admins only) */}
+        {!isAgent && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Team Performance</h3>
+                <p className="text-xs text-slate-500">Live agent distribution</p>
+              </div>
+              <Link
+                href="/dashboard/settings"
+                className="text-xs font-bold text-blue-600 hover:underline"
+              >
+                Manage →
+              </Link>
             </div>
-            <Link
-              href="/dashboard/settings"
-              className="text-xs font-bold text-blue-600 hover:underline"
-            >
-              Manage →
-            </Link>
-          </div>
 
-          <div className="space-y-3">
-            {teamMembers.map((member) => (
-              <div key={member.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center">
-                    {member.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <span>{member.name}</span>
-                      {member.isOnLeave && (
-                        <span className="text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Leave</span>
-                      )}
+            <div className="space-y-3">
+              {teamMembers.map((member) => (
+                <div key={member.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center">
+                      {member.name.charAt(0).toUpperCase()}
                     </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <span>{member.name}</span>
+                        {member.isOnLeave && (
+                          <span className="text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Leave</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400">
+                        {member.role} · {member.deviceToken ? '📱 Paired' : 'Not paired'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-slate-900 block">
+                      {member._count?.calls || 0} calls
+                    </span>
                     <span className="text-[10px] text-slate-400">
-                      {member.role} · {member.deviceToken ? '📱 Paired' : 'Not paired'}
+                      {member._count?.assignedLeads || 0} leads
                     </span>
                   </div>
                 </div>
-
-                <div className="text-right">
-                  <span className="text-xs font-bold text-slate-900 block">
-                    {member._count?.calls || 0} calls
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    {member._count?.assignedLeads || 0} leads
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* ─── Pinned Reports Section (matching Leadzam) ─── */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-bold text-slate-800">Saved Reports</h3>
+      {/* ─── Pinned Reports Section (matching Leadzam, Admins only) ─── */}
+      {!isAgent && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-bold text-slate-800">Saved Reports</h3>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs flex flex-col items-center justify-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-4">
-            <LayoutGrid className="w-7 h-7" />
-          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs flex flex-col items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-4">
+              <LayoutGrid className="w-7 h-7" />
+            </div>
 
-          <h4 className="text-base font-bold text-slate-900">Pin the reports you check most</h4>
-          <p className="text-xs text-slate-500 max-w-md mt-1.5 leading-relaxed">
-            Add up to 6 saved reports from Report Builder. Every admin in your organization sees the same dashboard.
-          </p>
+            <h4 className="text-base font-bold text-slate-900">Pin the reports you check most</h4>
+            <p className="text-xs text-slate-500 max-w-md mt-1.5 leading-relaxed">
+              Add up to 6 saved reports from Report Builder. Every admin in your organization sees the same dashboard.
+            </p>
 
-          <div className="flex items-center gap-3 mt-6">
-            <Link
-              href="/dashboard/report-builder/new"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add a report</span>
-            </Link>
+            <div className="flex items-center gap-3 mt-6">
+              <Link
+                href="/dashboard/report-builder/new"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add a report</span>
+              </Link>
 
-            <Link
-              href="/dashboard/reports"
-              className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition"
-            >
-              <span>Create a report</span>
-            </Link>
+              <Link
+                href="/dashboard/reports"
+                className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition"
+              >
+                <span>Create a report</span>
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
 import Link from 'next/link';
 import AudioPlayer from '@/components/AudioPlayer';
 import { fetchWithAuth, getApiBase } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { StatCardSkeleton, TableRowSkeleton, Toast, Badge } from '@/components/ui';
 
 interface CallStats {
@@ -137,7 +138,23 @@ const SUBTABS = [
 ];
 
 export default function CallsDashboard() {
+  const { user } = useAuth();
+  const isAgent = user?.role === 'AGENT';
+
+  const subtabs = isAgent
+    ? [
+        { id: 'overview', label: 'My Calls' },
+        { id: 'call_settings', label: 'Private Numbers' },
+      ]
+    : SUBTABS;
+
   const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => {
+    if (isAgent && ['team', 'call_policy', 'devices'].includes(activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [isAgent, activeTab]);
   const [stats, setStats] = useState<CallStats | null>(null);
   const [team, setTeam] = useState<Agent[]>([]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
@@ -733,7 +750,7 @@ export default function CallsDashboard() {
       {/* Subtabs Row */}
       <div style={{ borderBottom: '1px solid var(--border)' }}>
         <nav className="flex gap-1 overflow-x-auto">
-          {SUBTABS.map((tab) => {
+          {subtabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -790,17 +807,19 @@ export default function CallsDashboard() {
                 </select>
               </div>
 
-              <div className="relative">
-                <Users className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500 pointer-events-none" />
-                <select
-                  value={selectedAgent}
-                  onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="appearance-none bg-white border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                >
-                  <option value="all">All agents</option>
-                  {(Array.isArray(team) ? team : []).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              </div>
+              {!isAgent && (
+                <div className="relative">
+                  <Users className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500 pointer-events-none" />
+                  <select
+                    value={selectedAgent}
+                    onChange={(e) => setSelectedAgent(e.target.value)}
+                    className="appearance-none bg-white border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="all">All agents</option>
+                    {(Array.isArray(team) ? team : []).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
 
             <button

@@ -62,8 +62,16 @@ interface FollowUpCounts {
 
 export default function FollowupsPage() {
   const { user } = useAuth();
+  const isAgent = user?.role === 'AGENT';
+
   const [activeTab, setActiveTab] = useState<'call_followups' | 'todos' | 'needs_followup'>('call_followups');
   const [scope, setScope] = useState<'me' | 'team'>('me');
+
+  useEffect(() => {
+    if (isAgent && scope !== 'me') {
+      setScope('me');
+    }
+  }, [isAgent, scope]);
   const [statusFilter, setStatusFilter] = useState<'open' | 'completed'>('open');
   const [timeFilter, setTimeFilter] = useState<'this_week' | 'overdue' | 'today' | 'all'>('this_week');
   const [search, setSearch] = useState('');
@@ -323,32 +331,36 @@ export default function FollowupsPage() {
 
         {/* Right Action Bar */}
         <div className="flex items-center gap-3">
-          {/* Scope Toggle */}
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center text-xs font-semibold">
-            <button
-              onClick={() => setScope('me')}
-              className={`px-3 py-1 rounded-lg transition ${
-                scope === 'me' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Me
-            </button>
-            <button
-              onClick={() => setScope('team')}
-              className={`px-3 py-1 rounded-lg transition ${
-                scope === 'team' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Team
-            </button>
-          </div>
+          {/* Scope Toggle (Admins/Managers only) */}
+          {!isAgent && (
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center text-xs font-semibold">
+              <button
+                onClick={() => setScope('me')}
+                className={`px-3 py-1 rounded-lg transition ${
+                  scope === 'me' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Me
+              </button>
+              <button
+                onClick={() => setScope('team')}
+                className={`px-3 py-1 rounded-lg transition ${
+                  scope === 'team' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Team
+              </button>
+            </div>
+          )}
 
-          <Link
-            href="/dashboard/reports"
-            className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl transition shadow-xs"
-          >
-            Team report
-          </Link>
+          {!isAgent && (
+            <Link
+              href="/dashboard/reports"
+              className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl transition shadow-xs"
+            >
+              Team report
+            </Link>
+          )}
 
           <button
             onClick={() => handleOpenScheduleModal()}
