@@ -23,12 +23,7 @@ export default function SuperAdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // If already logged in, navigate straight to dashboard
-  useEffect(() => {
-    if (getSaasToken()) {
-      router.replace('/superadmin');
-    }
-  }, [router]);
+  // Keep user on login page to avoid redirect loops if token was revoked or expired
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

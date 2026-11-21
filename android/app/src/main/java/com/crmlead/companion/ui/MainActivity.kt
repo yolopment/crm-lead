@@ -427,6 +427,7 @@ class MainActivity : ComponentActivity() {
                                         token = devToken,
                                         userName = userName,
                                         userRole = userRoleState,
+                                        currentSimSlot = selectedSimSlot,
                                         onOpenDrawer = { scope.launch { drawerState.open() } },
                                         onCheckNewRecordings = { syncRecordingsWithBackend() },
                                         onRetrySync = { triggerManualSync() },
@@ -502,7 +503,15 @@ class MainActivity : ComponentActivity() {
                                                 .putInt(KEY_WORK_SIM_SLOT, slot)
                                                 .putString(KEY_WORK_SIM_NAME, simName)
                                                 .apply()
-                                            Toast.makeText(this@MainActivity, "Tracked SIM updated to $simName", Toast.LENGTH_SHORT).show()
+
+                                            // Purge local calls from other SIMs if user switched to a single SIM
+                                            lifecycleScope.launch(Dispatchers.IO) {
+                                                if (slot != -1) {
+                                                    db.callDao().deleteCallsFromOtherSimSlots(slot)
+                                                }
+                                            }
+
+                                            Toast.makeText(this@MainActivity, "Tracking $simName · Other calls remain private", Toast.LENGTH_SHORT).show()
                                         }
                                     )
                                 }

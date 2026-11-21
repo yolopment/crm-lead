@@ -67,6 +67,7 @@ fun CallsScreen(
     token: String,
     userName: String,
     userRole: String = "AGENT",
+    currentSimSlot: Int = -1,
     onOpenDrawer: () -> Unit,
     onCheckNewRecordings: () -> Unit,
     onRetrySync: () -> Unit,
@@ -181,9 +182,15 @@ fun CallsScreen(
         }
     }
 
+    // Base calls filtered by active SIM slot (SIM 1 = 0, SIM 2 = 1, All SIMs = -1)
+    val effectiveCallsList = remember(callsList, currentSimSlot) {
+        if (currentSimSlot == -1) callsList
+        else callsList.filter { it.simSlot == null || it.simSlot == currentSimSlot }
+    }
+
     // Filter calls in the active date window
-    val callsInDateRange = remember(callsList, rangeStart, rangeEnd) {
-        callsList.filter { it.startedAt in rangeStart..rangeEnd }
+    val callsInDateRange = remember(effectiveCallsList, rangeStart, rangeEnd) {
+        effectiveCallsList.filter { it.startedAt in rangeStart..rangeEnd }
     }
 
     // Dynamic Summary calculations for the selected filter
@@ -210,8 +217,8 @@ fun CallsScreen(
     }
 
     // Calls filtered by date range and search query
-    val filteredCalls = remember(callsList, callsInDateRange, selectedDateFilter, searchQuery) {
-        val baseList = if (selectedDateFilter == CallDateFilter.ALL_TIME) callsList else callsInDateRange
+    val filteredCalls = remember(effectiveCallsList, callsInDateRange, selectedDateFilter, searchQuery) {
+        val baseList = if (selectedDateFilter == CallDateFilter.ALL_TIME) effectiveCallsList else callsInDateRange
         if (searchQuery.isBlank()) baseList
         else baseList.filter {
             it.phoneNumber.contains(searchQuery.trim(), ignoreCase = true) ||
@@ -366,9 +373,12 @@ fun CallsScreen(
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
-            // Subtitle Caption matching Images 6 & 7
+            // Subtitle Caption indicating active SIM filter
             Text(
-                text = if (effectiveTab == 0) "Calls on this device · captured & synchronized" else "Saved in StaffCaller · a call shows after the rep's phone uploads it",
+                text = if (effectiveTab == 0) {
+                    if (currentSimSlot != -1) "Calls on SIM ${currentSimSlot + 1} · captured & synchronized"
+                    else "Calls on this device · captured & synchronized"
+                } else "Saved in StaffCaller · a call shows after the rep's phone uploads it",
                 fontSize = 12.sp,
                 color = TextSubtle,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)

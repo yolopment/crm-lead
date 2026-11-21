@@ -78,9 +78,46 @@ class PhoneStateReceiver : BroadcastReceiver() {
 
                 Log.d(TAG, "Call ended. Phone: $phone, Dir: $direction, Status: $status, Duration: ${durationSec}s")
 
-                // Delay 2 seconds to allow native dialer to finalize writing recording file to disk
+                // Delay 2.5 seconds to allow native dialer to finalize writing recording file and call log to disk
                 CoroutineScope(Dispatchers.IO).launch {
                     delay(2500)
+
+                    val prefs = context.getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+                    val workSimSlot = prefs.getInt(com.crmlead.companion.ui.MainActivity.KEY_WORK_SIM_SLOT, -1)
+                    val simCards = try {
+                        com.crmlead.companion.sim.SimManagerHelper.getActiveSimCards(context)
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+
+                    // Query call log to detect which SIM slot was used for this call
+                    var detectedSimSlot: Int? = null
+                    try {
+                        val cursor = context.contentResolver.query(
+                            android.provider.CallLog.Calls.CONTENT_URI,
+                            null,
+                            "${android.provider.CallLog.Calls.NUMBER} = ? AND ${android.provider.CallLog.Calls.DATE} >= ?",
+                            arrayOf(phone, (if (callStartTime > 0) callStartTime - 15_000 else callEndTime - 60_000).coerceAtLeast(0).toString()),
+                            "${android.provider.CallLog.Calls.DATE} DESC"
+                        )
+                        cursor?.use { c ->
+                            if (c.moveToFirst()) {
+                                val slot = com.crmlead.companion.sim.SimManagerHelper.resolveCallSimSlot(c, simCards)
+                                if (slot != -1) {
+                                    detectedSimSlot = slot
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error checking CallLog for SIM slot: ${e.message}")
+                    }
+
+                    // Strict Dual SIM Guard: If user designated a work SIM and this call was on another SIM, ignore!
+                    if (workSimSlot != -1 && detectedSimSlot != null && detectedSimSlot != workSimSlot) {
+                        Log.d(TAG, "Dual SIM: Skipping call on SIM $detectedSimSlot (User tracks SIM $workSimSlot only)")
+                        return@launch
+                    }
+
                     val recordingFile = CallAudioDetector.findRecordingForCall(context, phone, callStartTime, callEndTime, durationSec)
                     val contactName = com.crmlead.companion.contact.ContactHelper.resolveContactName(context, phone)
 
@@ -92,7 +129,8 @@ class PhoneStateReceiver : BroadcastReceiver() {
                         durationSec = durationSec,
                         startedAt = if (callStartTime > 0) callStartTime else callEndTime,
                         endedAt = callEndTime,
-                        audioFilePath = recordingFile?.absolutePath
+                        audioFilePath = recordingFile?.absolutePath,
+                        simSlot = detectedSimSlot
                     )
 
                     val db = AppDatabase.getDatabase(context)

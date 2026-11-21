@@ -60,18 +60,17 @@ object CallLogImporter {
 
         onProgress?.invoke("Reading call history (last $days days)...")
         val cutoffTime = System.currentTimeMillis() - (days.toLong() * 24 * 60 * 60 * 1000)
-        val projection = arrayOf(
-            CallLog.Calls.NUMBER,
-            CallLog.Calls.CACHED_NAME,
-            CallLog.Calls.DATE,
-            CallLog.Calls.DURATION,
-            CallLog.Calls.TYPE
-        )
+        val simCards = try {
+            com.crmlead.companion.sim.SimManagerHelper.getActiveSimCards(context)
+        } catch (e: Exception) {
+            emptyList()
+        }
 
+        // Pass null for projection to retrieve all OEM and AOSP columns (including sim_id, sub_id, phone_account_id)
         val cursor: Cursor? = try {
             context.contentResolver.query(
                 CallLog.Calls.CONTENT_URI,
-                projection,
+                null,
                 "${CallLog.Calls.DATE} >= ?",
                 arrayOf(cutoffTime.toString()),
                 "${CallLog.Calls.DATE} DESC"
@@ -100,6 +99,16 @@ object CallLogImporter {
 
             while (cursor.moveToNext()) {
                 val phone = cursor.getString(numIdx) ?: continue
+
+                // Resolve SIM card for this call (0 = SIM 1, 1 = SIM 2, -1 = unknown)
+                val callSlot = com.crmlead.companion.sim.SimManagerHelper.resolveCallSimSlot(cursor, simCards)
+
+                // Strict Dual-SIM Enforcement: If a specific work SIM is selected (e.g. SIM 2 = slot 1),
+                // skip any call executed on the other SIM!
+                if (workSimSlot != -1 && callSlot != -1 && callSlot != workSimSlot) {
+                    continue
+                }
+
                 val cachedName = if (nameIdx >= 0) cursor.getString(nameIdx) else null
                 val contactName = if (!cachedName.isNullOrBlank()) {
                     cachedName.trim()
@@ -158,6 +167,9 @@ object CallLogImporter {
                     put("startedAt", isoFormat.format(Date(callDate)))
                     put("endedAt", isoFormat.format(Date(callDate + duration * 1000L)))
                     put("hasAudio", hasAudio)
+                    if (callSlot != -1) {
+                        put("simSlot", callSlot)
+                    }
                 }
                 jsonCallsArray.put(callObj)
 
@@ -171,7 +183,8 @@ object CallLogImporter {
                         startedAt = callDate,
                         endedAt = callDate + duration * 1000L,
                         audioFilePath = matchedRecording?.absolutePath,
-                        isSynced = true
+                        isSynced = true,
+                        simSlot = if (callSlot != -1) callSlot else null
                     )
                 )
 

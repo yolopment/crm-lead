@@ -43,8 +43,8 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
   const normalizedPath = (pathname || '').replace(/\/+$/, '');
   const isLoginPage =
-    normalizedPath === '/superadmin/login' ||
-    (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/superadmin/login');
+    normalizedPath.includes('/superadmin/login') ||
+    (typeof window !== 'undefined' && window.location.pathname.includes('/superadmin/login'));
 
   // Auth Guard
   useEffect(() => {
@@ -55,7 +55,9 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
     const token = getSaasToken();
     if (!token) {
-      router.replace('/superadmin/login');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/superadmin/login/';
+      }
       setTokenChecked(true);
       return;
     }
@@ -65,13 +67,17 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
       setAdmin(savedAdmin);
     }
     setTokenChecked(true);
-  }, [pathname, isLoginPage, router]);
+  }, [pathname, isLoginPage]);
 
   // Handle Logout
   const handleLogout = () => {
     clearSaasToken();
     clearSaasAdmin();
-    router.replace('/superadmin/login');
+    if (typeof window !== 'undefined') {
+      window.location.href = '/superadmin/login/';
+    } else {
+      router.replace('/superadmin/login');
+    }
   };
 
   // If on login page, render child directly without sidebar/topbar

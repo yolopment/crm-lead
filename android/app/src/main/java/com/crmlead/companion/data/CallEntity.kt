@@ -19,5 +19,6 @@ data class CallEntity(
     val isAudioUploaded: Boolean = false,
     val serverCallId: String? = null,
     val tags: String? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    val simSlot: Int? = null // 0 for SIM 1, 1 for SIM 2, null if untracked / single SIM
 )
