@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import AudioPlayer from '@/components/AudioPlayer';
-import { fetchWithAuth, API_BASE } from '@/lib/api';
+import { fetchWithAuth, getApiBase } from '@/lib/api';
 import { StatCardSkeleton, TableRowSkeleton, Toast, Badge } from '@/components/ui';
 
 interface CallStats {
@@ -580,7 +580,7 @@ export default function CallsDashboard() {
     formData.append('audio', file);
     setToast({ message: 'Uploading recording...', type: 'info' });
     try {
-      const res = await fetch(`${API_BASE}/calls/${callId}/upload-recording`, {
+      const res = await fetch(`${getApiBase()}/calls/${callId}/upload-recording`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

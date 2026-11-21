@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+import { getApiBase } from './api';
+
+const API_BASE = '/api/v1';
 
 export interface SaasAdminProfile {
   id: string;
@@ -57,7 +59,7 @@ export async function fetchSaasApi<T = any>(path: string, options: RequestInit =
     if (!endpoint.startsWith('/superadmin')) {
       endpoint = `/superadmin${endpoint}`;
     }
-    endpoint = `${API_BASE}${endpoint}`;
+    endpoint = `${getApiBase()}${endpoint}`;
   }
 
   const headers: Record<string, string> = {

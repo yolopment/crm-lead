@@ -4,8 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Phone, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
+import { getApiBase } from '@/lib/api';
 
 function RegisterForm() {
   const router = useRouter();
@@ -33,7 +32,7 @@ function RegisterForm() {
   useEffect(() => {
     if (inviteToken) {
       setIsLoading(true);
-      fetch(`${API_BASE}/auth/invite/${inviteToken}`)
+      fetch(`${getApiBase()}/auth/invite/${inviteToken}`)
         .then((res) => {
           if (!res.ok) throw new Error('Invalid or expired invitation link');
           return res.json();
@@ -65,7 +64,7 @@ function RegisterForm() {
     try {
       if (inviteToken) {
         // Accept Invitation flow
-        const res = await fetch(`${API_BASE}/auth/accept-invite`, {
+        const res = await fetch(`${getApiBase()}/auth/accept-invite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -81,7 +80,7 @@ function RegisterForm() {
         router.push('/dashboard/calls');
       } else {
         // Create new organization flow
-        const res = await fetch(`${API_BASE}/auth/register`, {
+        const res = await fetch(`${getApiBase()}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),

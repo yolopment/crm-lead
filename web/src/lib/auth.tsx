@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { getApiBase } from './api';
 
 interface User {
   id: string;
@@ -41,8 +42,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [org, setOrg] = useState<Organization | null>(null);
@@ -57,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, {
+      const res = await fetch(`${getApiBase()}/auth/me`, {
         headers: { Authorization: `Bearer ${storedToken}` },
       });
       if (!res.ok) {
@@ -90,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser]);
 
   const login = async (email: string, password: string) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const res = await fetch(`${getApiBase()}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),

@@ -24,7 +24,7 @@ import {
   Camera,
 } from 'lucide-react';
 import { fetchSaasApi } from '@/lib/saas-api';
-import { API_BASE } from '@/lib/api';
+import { getApiBase } from '@/lib/api';
 
 interface DashboardStats {
   totalOrgs: number;
@@ -88,7 +88,7 @@ export default function SuperAdminDashboardPage() {
     try {
       setExporting(type);
       const token = localStorage.getItem('saas_token');
-      const res = await fetch(`${API_BASE}/superadmin/export/${type}`, {
+      const res = await fetch(`${getApiBase()}/superadmin/export/${type}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

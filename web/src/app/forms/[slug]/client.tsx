@@ -13,6 +13,7 @@ import {
   MapPin,
   Check,
 } from 'lucide-react';
+import { getApiBase } from '@/lib/api';
 
 const COUNTRY_CODES = [
   { code: '+91', label: 'India (+91)', flag: '🇮🇳' },
@@ -51,8 +52,7 @@ export default function PublicFormPage() {
       try {
         setLoading(true);
         setError('');
-        const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
-        const apiBase = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`;
+        const apiBase = getApiBase();
         const res = await fetch(`${apiBase}/forms/public/${slug}`);
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -174,8 +174,7 @@ export default function PublicFormPage() {
         ...formData,
       };
 
-      const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
-      const apiBase = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`;
+      const apiBase = getApiBase();
       const res = await fetch(`${apiBase}/forms/public/${slug}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

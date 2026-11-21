@@ -1,7 +1,18 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+export function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' && window.location.port === '3000') {
+      return 'http://localhost:5001/api/v1';
+    }
+    return '/api/v1';
+  }
+  return '/api/v1';
+}
+
+const API_BASE = '/api/v1';
 
 export async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null;
+  const base = getApiBase();
 
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -16,7 +27,7 @@ export async function fetchWithAuth(endpoint: string, options: RequestInit = {})
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  const res = await fetch(`${base}${endpoint}`, {
     ...options,
     headers,
   });
@@ -47,7 +58,7 @@ export async function fetchWithAuth(endpoint: string, options: RequestInit = {})
 
 export function getAudioUrl(callId: string): string {
   const token = typeof window !== 'undefined' ? localStorage.getItem('crm_token') : '';
-  return `${API_BASE}/calls/${callId}/audio?token=${encodeURIComponent(token || '')}`;
+  return `${getApiBase()}/calls/${callId}/audio?token=${encodeURIComponent(token || '')}`;
 }
 
 export { API_BASE };
