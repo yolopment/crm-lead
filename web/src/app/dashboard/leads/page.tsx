@@ -157,11 +157,6 @@ export default function LeadsPage() {
   const [bulkText, setBulkText] = useState('');
   const [bulkUploading, setBulkUploading] = useState(false);
 
-  // Quick WhatsApp Send Modal state
-  const [quickWhatsAppLead, setQuickWhatsAppLead] = useState<Lead | null>(null);
-  const [quickWhatsAppMessage, setQuickWhatsAppMessage] = useState('');
-  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
-
   // Audio Player in Activity
   const [playingCallId, setPlayingCallId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -201,38 +196,6 @@ export default function LeadsPage() {
     if (action === 'add-single') setShowAddDrawer(true);
     if (action === 'bulk-upload') setShowBulkModal(true);
   }, [searchParams]);
-
-  const openQuickWhatsApp = (lead: Lead) => {
-    setQuickWhatsAppLead(lead);
-    const name = lead.fullName || 'there';
-    setQuickWhatsAppMessage(`Hi ${name}, thank you for contacting us! How can we help you today?`);
-  };
-
-  const handleSendQuickWhatsApp = async () => {
-    if (!quickWhatsAppLead || !quickWhatsAppMessage.trim()) return;
-    try {
-      setSendingWhatsApp(true);
-      await fetchWithAuth('/whatsapp/send', {
-        method: 'POST',
-        body: JSON.stringify({
-          toPhone: quickWhatsAppLead.phone,
-          message: quickWhatsAppMessage.trim(),
-          leadId: quickWhatsAppLead.id,
-        }),
-      });
-      setToast({ message: `WhatsApp message sent to ${quickWhatsAppLead.fullName || quickWhatsAppLead.phone}!`, type: 'success' });
-      setQuickWhatsAppLead(null);
-    } catch (err: any) {
-      // If not connected, offer option to open WhatsApp Web
-      if (err.message?.includes('not connected')) {
-        setToast({ message: 'WhatsApp is not linked. Please scan QR in the WhatsApp tab first, or use WhatsApp Web link.', type: 'error' });
-      } else {
-        setToast({ message: err.message || 'Failed to send WhatsApp message', type: 'error' });
-      }
-    } finally {
-      setSendingWhatsApp(false);
-    }
-  };
 
   // Load Lead Detail for Slide-Over Drawer
   const openLeadDetail = async (lead: Lead) => {
@@ -641,15 +604,6 @@ export default function LeadsPage() {
                           >
                             <Smartphone className="w-3 h-3 text-blue-600" />
                             <span>Call</span>
-                          </button>
-
-                          <button
-                            onClick={() => openQuickWhatsApp(lead)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-[11px] font-semibold transition"
-                            title="Send WhatsApp from CRM"
-                          >
-                            <MessageCircle className="w-3 h-3 text-emerald-600" />
-                            <span>WhatsApp</span>
                           </button>
                         </div>
                       </td>
@@ -1332,107 +1286,6 @@ export default function LeadsPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* QUICK WHATSAPP SEND MODAL */}
-      {quickWhatsAppLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                  <MessageCircle className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Send WhatsApp to {quickWhatsAppLead.fullName || 'Lead'}
-                  </h3>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    {quickWhatsAppLead.phone}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setQuickWhatsAppLead(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Quick Templates */}
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                Quick Template:
-              </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[
-                  'Introduction & Greeting',
-                  'Pricing Follow-up',
-                  'Demo Scheduling',
-                ].map((tmpl, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      const name = quickWhatsAppLead.fullName || 'there';
-                      if (idx === 0) setQuickWhatsAppMessage(`Hi ${name}, thank you for contacting us! How can we help you today?`);
-                      if (idx === 1) setQuickWhatsAppMessage(`Hello ${name}, following up on our recent phone call. Please let me know if you have any questions about the proposal!`);
-                      if (idx === 2) setQuickWhatsAppMessage(`Hi ${name}, would you be available for a brief 10-minute demo call tomorrow?`);
-                    }}
-                    className="px-2.5 py-1 text-[11px] bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 rounded-lg transition"
-                  >
-                    {tmpl}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Message Box */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Message Text</label>
-              <textarea
-                rows={4}
-                value={quickWhatsAppMessage}
-                onChange={(e) => setQuickWhatsAppMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <a
-                href={`https://wa.me/${quickWhatsAppLead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(quickWhatsAppMessage)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-slate-500 hover:text-emerald-600 flex items-center gap-1 font-medium"
-              >
-                <span>Or open in WhatsApp Web</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setQuickWhatsAppLead(null)}
-                  className="px-3.5 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSendQuickWhatsApp}
-                  disabled={sendingWhatsApp || !quickWhatsAppMessage.trim()}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5"
-                >
-                  {sendingWhatsApp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  <span>Send WhatsApp</span>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

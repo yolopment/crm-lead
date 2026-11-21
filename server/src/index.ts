@@ -19,10 +19,8 @@ import dashboardRoutes from './routes/dashboard.routes.js';
 import superadminRoutes from './routes/superadmin.routes.js';
 import gdriveOAuthRoutes from './routes/gdrive-oauth.routes.js';
 import billingRoutes from './routes/billing.routes.js';
-import whatsappRoutes from './routes/whatsapp.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import { authenticateSaasAdmin } from './middleware/saasAuth.js';
-import { restoreActiveWhatsAppSessions } from './services/whatsapp.service.js';
 import { initDatabase } from './services/db-init.service.js';
 
 const app = express();
@@ -69,7 +67,6 @@ app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/superadmin', superadminRoutes);
 app.use('/api/v1/integrations/gdrive', gdriveOAuthRoutes);
 app.use('/api/v1/billing', billingRoutes);
-app.use('/api/v1/whatsapp', whatsappRoutes);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -100,9 +97,6 @@ app.listen(config.port, '0.0.0.0', async () => {
   } catch (initErr) {
     console.error('Database initialization error:', initErr);
   }
-
-  // Restore active WhatsApp Linked Device sessions
-  restoreActiveWhatsAppSessions().catch(console.error);
 });
 
 export default app;

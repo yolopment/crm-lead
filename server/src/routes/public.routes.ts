@@ -58,8 +58,8 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>StaffCaller — Automatic Call Recording Sync & Sales CRM</title>
-  <meta name="description" content="StaffCaller is an enterprise SaaS CRM for automatic call tracking, Android call recording synchronization, WhatsApp integration, and round-robin lead distribution.">
-  <meta name="keywords" content="CRM, call tracking, call recording sync, sales CRM, Android call sync, lead distribution, WhatsApp CRM">
+  <meta name="description" content="StaffCaller is an enterprise SaaS CRM for automatic call tracking, Android call recording synchronization, and round-robin lead distribution.">
+  <meta name="keywords" content="CRM, call tracking, call recording sync, sales CRM, Android call sync, lead distribution">
   <link rel="canonical" href="https://staffcaller.cloud/">
   <link rel="icon" type="image/png" href="/icon.png">
   <link rel="apple-touch-icon" href="/logo.png">
@@ -281,7 +281,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
   <main>
     <section class="hero">
       <h1>Automatic Call Tracking &amp; Sales CRM Platform</h1>
-      <p>Seamlessly synchronize phone call recordings directly from Android agent devices. Manage leads with intelligent round-robin routing, WhatsApp Web follow-ups, and instant zero-buffering audio streaming.</p>
+      <p>Seamlessly synchronize phone call recordings directly from Android agent devices. Manage leads with intelligent round-robin routing, fast follow-up reminders, and instant zero-buffering audio streaming.</p>
       <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
         <a href="/downloads/staffcaller.apk" class="btn btn-primary" style="background: #2563eb; display: inline-flex; align-items: center; gap: 8px;">
           <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -312,9 +312,9 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       </div>
 
       <div class="card">
-        <div class="card-icon">💬</div>
-        <h3>WhatsApp Web Integration</h3>
-        <p>Direct multi-session WhatsApp integration powered by Baileys. Send automated notifications, quick follow-ups, and client updates straight from the dashboard.</p>
+        <div class="card-icon">⚡</div>
+        <h3>Unified Lead Timeline</h3>
+        <p>Comprehensive client history: track phone calls, audio recordings, team notes, and scheduled follow-ups all in one consolidated dashboard view.</p>
       </div>
 
       <div class="card">

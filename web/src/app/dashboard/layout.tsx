@@ -45,7 +45,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'All Leads', href: '/dashboard/leads', icon: Users },
   { label: 'Follow-ups', href: '/dashboard/follow-ups', icon: Clock },
   { label: 'Calls', href: '/dashboard/calls', icon: Phone },
-  { label: 'WhatsApp', href: '/dashboard/whatsapp', icon: MessageSquare },
   { label: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
   { label: 'Forms', href: '/dashboard/forms', icon: FileText },
   { label: 'Integrations', href: '/dashboard/integrations', icon: Plug },
