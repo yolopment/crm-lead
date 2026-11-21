@@ -36,6 +36,8 @@ router.post('/organizations/:id/reactivate', SuperAdminController.reactivateOrga
 router.patch('/organizations/:id/reactivate', SuperAdminController.reactivateOrganization);
 router.post('/organizations/:id/extend-trial', SuperAdminController.extendTrial);
 router.patch('/organizations/:id/extend-trial', SuperAdminController.extendTrial);
+router.patch('/organizations/:id/billing', SuperAdminController.activateBilling);
+router.post('/organizations/:id/billing', SuperAdminController.activateBilling);
 router.post('/organizations/:id/delete', SuperAdminController.deleteOrganization);
 router.delete('/organizations/:id/delete', SuperAdminController.deleteOrganization);
 router.delete('/organizations/:id', SuperAdminController.deleteOrganization);

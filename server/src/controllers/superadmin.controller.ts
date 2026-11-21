@@ -206,10 +206,13 @@ export class SuperAdminController {
         adminName,
         adminEmail,
         adminPassword = 'Admin@123',
-        planTier = 'STARTER',
-        orgStatus = 'ACTIVE',
-        trialDays = 14,
+        // Custom pricing model — no fixed plan tiers during onboarding
+        maxUsers = 5,
+        maxLeads = 2000,
         storageQuotaGB = 15,
+        customPriceMonthly,   // in paise, optional
+        customPriceYearly,    // in paise, optional
+        billingNotes,
       } = req.body;
 
       if (!name || !adminName || !adminEmail) {
@@ -240,24 +243,11 @@ export class SuperAdminController {
         cleanSlug = `${cleanSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
       }
 
-      // Look up target plan
-      const targetPlan = (await prisma.plan.findFirst({
-        where: { tier: (planTier.toUpperCase() as PlanTier) || PlanTier.STARTER },
-      })) || (await prisma.plan.findFirst({ where: { tier: PlanTier.STARTER } }));
-
-      const maxUsers = targetPlan ? targetPlan.maxUsers : 5;
-      const maxLeads = targetPlan ? targetPlan.maxLeads : 2000;
+      // Always start with 14-day trial — pricing is negotiated post-trial
+      const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
       const quotaBytes = BigInt(Math.max(1, Number(storageQuotaGB))) * BigInt(1024 * 1024 * 1024);
 
-      const trialEndsAt =
-        orgStatus === 'TRIAL'
-          ? new Date(Date.now() + Math.max(1, Number(trialDays)) * 24 * 60 * 60 * 1000)
-          : null;
-
       const hashedPassword = await bcrypt.hash(adminPassword, 10);
-
-      const now = new Date();
-      const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       const result = await prisma.$transaction(async (tx) => {
         const org = await tx.organization.create({
@@ -266,14 +256,17 @@ export class SuperAdminController {
             slug: cleanSlug,
             phone: phone?.trim() || null,
             website: website?.trim() || null,
-            orgStatus: ((orgStatus.toUpperCase() as OrgStatus) in OrgStatus) ? (orgStatus.toUpperCase() as OrgStatus) : OrgStatus.ACTIVE,
-            planTier: targetPlan?.tier || PlanTier.STARTER,
+            orgStatus: OrgStatus.TRIAL,
+            planTier: PlanTier.STARTER, // kept for compatibility, not user-facing
             trialEndsAt,
-            maxUsers,
-            maxLeads,
+            maxUsers: Number(maxUsers) || 5,
+            maxLeads: Number(maxLeads) || 2000,
             storageQuotaBytes: quotaBytes,
             storageUsedBytes: BigInt(0),
             orgStorageDriver: 'local',
+            customPriceMonthly: customPriceMonthly ? Number(customPriceMonthly) : null,
+            customPriceYearly: customPriceYearly ? Number(customPriceYearly) : null,
+            billingNotes: billingNotes?.trim() || null,
           },
         });
 
@@ -288,33 +281,28 @@ export class SuperAdminController {
           },
         });
 
-        if (targetPlan) {
-          await tx.subscription.create({
-            data: {
-              orgId: org.id,
-              planId: targetPlan.id,
-              status: orgStatus === 'TRIAL' ? 'TRIALING' : 'ACTIVE',
-              currentPeriodStart: now,
-              currentPeriodEnd: periodEnd,
-              trialEnd: trialEndsAt,
-            },
-          });
-        }
-
         return { org, adminUser };
       });
 
+      const trialDaysRemaining = Math.max(
+        0,
+        Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      );
+
       res.status(201).json({
-        message: 'Client organization and admin account created successfully.',
+        message: 'Client organization onboarded successfully on 14-day trial.',
         organization: {
           id: result.org.id,
           name: result.org.name,
           slug: result.org.slug,
           orgStatus: result.org.orgStatus,
-          planTier: result.org.planTier,
+          trialEndsAt: result.org.trialEndsAt,
+          trialDaysRemaining,
           storageQuotaBytes: Number(result.org.storageQuotaBytes),
           maxUsers: result.org.maxUsers,
           maxLeads: result.org.maxLeads,
+          customPriceMonthly: result.org.customPriceMonthly,
+          customPriceYearly: result.org.customPriceYearly,
         },
         adminUser: {
           id: result.adminUser.id,
@@ -498,6 +486,75 @@ export class SuperAdminController {
     } catch (error: any) {
       console.error('[SuperAdmin Reactivate Org Error]:', error);
       res.status(500).json({ error: error.message || 'Failed to reactivate organization.' });
+    }
+  }
+
+  /**
+   * Activate billing for an organization after trial — set custom negotiated pricing
+   * PATCH /api/v1/superadmin/organizations/:id/billing
+   */
+  static async activateBilling(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const {
+        customPriceMonthly,  // in paise (₹1 = 100 paise)
+        customPriceYearly,   // in paise
+        billingCycle,        // "monthly" | "yearly"
+        maxUsers,
+        maxLeads,
+        storageQuotaGB,
+        billingNotes,
+        activateNow = true,  // if true, change orgStatus from TRIAL → ACTIVE
+      } = req.body;
+
+      const org = await prisma.organization.findUnique({ where: { id } });
+      if (!org) {
+        res.status(404).json({ error: 'Organization not found.' });
+        return;
+      }
+
+      const updateData: any = {};
+      if (customPriceMonthly !== undefined) updateData.customPriceMonthly = Number(customPriceMonthly);
+      if (customPriceYearly !== undefined) updateData.customPriceYearly = Number(customPriceYearly);
+      if (billingCycle) updateData.billingCycle = billingCycle;
+      if (maxUsers !== undefined) updateData.maxUsers = Number(maxUsers);
+      if (maxLeads !== undefined) updateData.maxLeads = Number(maxLeads);
+      if (storageQuotaGB !== undefined) {
+        updateData.storageQuotaBytes = BigInt(Math.max(1, Number(storageQuotaGB))) * BigInt(1024 * 1024 * 1024);
+      }
+      if (billingNotes !== undefined) updateData.billingNotes = billingNotes;
+      if (activateNow) {
+        updateData.orgStatus = OrgStatus.ACTIVE;
+        updateData.activatedAt = new Date();
+        updateData.trialEndsAt = null; // clear trial
+      }
+
+      const updated = await prisma.organization.update({
+        where: { id },
+        data: updateData,
+      });
+
+      res.status(200).json({
+        message: activateNow
+          ? `${updated.name} subscription activated with custom pricing.`
+          : `Billing details updated for ${updated.name}.`,
+        organization: {
+          id: updated.id,
+          name: updated.name,
+          orgStatus: updated.orgStatus,
+          customPriceMonthly: updated.customPriceMonthly,
+          customPriceYearly: updated.customPriceYearly,
+          billingCycle: updated.billingCycle,
+          maxUsers: updated.maxUsers,
+          maxLeads: updated.maxLeads,
+          storageQuotaBytes: Number(updated.storageQuotaBytes),
+          activatedAt: updated.activatedAt,
+          billingNotes: updated.billingNotes,
+        },
+      });
+    } catch (err: any) {
+      console.error('[SuperAdmin activateBilling Error]:', err);
+      res.status(500).json({ error: err.message || 'Failed to update billing.' });
     }
   }
 

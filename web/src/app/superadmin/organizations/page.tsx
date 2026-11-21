@@ -71,6 +71,11 @@ interface Organization {
   storageUsedBytes: number;
   orgStorageDriver: string;
   createdAt: string;
+  customPriceMonthly?: number | null;
+  customPriceYearly?: number | null;
+  billingCycle?: string | null;
+  activatedAt?: string | null;
+  billingNotes?: string | null;
   _count?: OrgCount;
   subscription?: Subscription | null;
 }
@@ -125,9 +130,8 @@ export default function SuperAdminOrganizationsPage() {
     adminName: '',
     adminEmail: '',
     adminPassword: 'Admin@123',
-    planTier: 'STARTER',
-    orgStatus: 'ACTIVE',
-    trialDays: 14,
+    maxUsers: 5,
+    maxLeads: 2000,
     storageQuotaGB: 15,
   });
 
@@ -158,9 +162,8 @@ export default function SuperAdminOrganizationsPage() {
         adminName: '',
         adminEmail: '',
         adminPassword: 'Admin@123',
-        planTier: 'STARTER',
-        orgStatus: 'ACTIVE',
-        trialDays: 14,
+        maxUsers: 5,
+        maxLeads: 2000,
         storageQuotaGB: 15,
       });
       loadOrganizations();
@@ -199,6 +202,67 @@ export default function SuperAdminOrganizationsPage() {
   const [planStorageGB, setPlanStorageGB] = useState<number>(25);
   const [planStatus, setPlanStatus] = useState<string>('ACTIVE');
   const [savingPlan, setSavingPlan] = useState<boolean>(false);
+
+  // Activate Billing Modal State (new custom pricing model)
+  const [activateBillingOrg, setActivateBillingOrg] = useState<Organization | null>(null);
+  const [billingForm, setBillingForm] = useState({
+    customPriceMonthly: '',   // in ₹ (displayed), converted to paise on submit
+    customPriceYearly: '',
+    billingCycle: 'monthly',
+    maxUsers: 5,
+    maxLeads: 2000,
+    storageQuotaGB: 15,
+    billingNotes: '',
+    activateNow: true,
+  });
+  const [savingBilling, setSavingBilling] = useState(false);
+
+  const handleOpenActivateBilling = (org: Organization) => {
+    setActivateBillingOrg(org);
+    setBillingForm({
+      customPriceMonthly: org.customPriceMonthly ? String(org.customPriceMonthly / 100) : '',
+      customPriceYearly: org.customPriceYearly ? String(org.customPriceYearly / 100) : '',
+      billingCycle: org.billingCycle || 'monthly',
+      maxUsers: org.maxUsers || 5,
+      maxLeads: org.maxLeads || 2000,
+      storageQuotaGB: Math.round(org.storageQuotaBytes / (1024 * 1024 * 1024)) || 15,
+      billingNotes: org.billingNotes || '',
+      activateNow: org.orgStatus === 'TRIAL',
+    });
+  };
+
+  const handleActivateBillingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activateBillingOrg) return;
+    try {
+      setSavingBilling(true);
+      await fetchSaasApi(`/organizations/${activateBillingOrg.id}/billing`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          customPriceMonthly: billingForm.customPriceMonthly ? Math.round(parseFloat(billingForm.customPriceMonthly) * 100) : undefined,
+          customPriceYearly: billingForm.customPriceYearly ? Math.round(parseFloat(billingForm.customPriceYearly) * 100) : undefined,
+          billingCycle: billingForm.billingCycle,
+          maxUsers: billingForm.maxUsers,
+          maxLeads: billingForm.maxLeads,
+          storageQuotaGB: billingForm.storageQuotaGB,
+          billingNotes: billingForm.billingNotes,
+          activateNow: billingForm.activateNow,
+        }),
+      });
+      setToastMessage({
+        text: billingForm.activateNow
+          ? `${activateBillingOrg.name} subscription activated!`
+          : `Billing details updated for ${activateBillingOrg.name}.`,
+        type: 'success',
+      });
+      setActivateBillingOrg(null);
+      loadOrganizations(pagination.page);
+    } catch (err: any) {
+      setToastMessage({ text: err.message || 'Failed to update billing.', type: 'error' });
+    } finally {
+      setSavingBilling(false);
+    }
+  };
 
   const applyPlanDefaults = (tier: string) => {
     setTargetPlanTier(tier);
@@ -633,10 +697,17 @@ export default function SuperAdminOrganizationsPage() {
                           </span>
                         )}
                         {org.orgStatus === 'TRIAL' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                            TRIAL
-                          </span>
+                          <div>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                              TRIAL
+                            </span>
+                            {org.trialEndsAt && (
+                              <p className="text-[10px] text-amber-400/60 mt-0.5">
+                                {Math.max(0, Math.ceil((new Date(org.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days left
+                              </p>
+                            )}
+                          </div>
                         )}
                         {org.orgStatus === 'SUSPENDED' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
@@ -656,11 +727,24 @@ export default function SuperAdminOrganizationsPage() {
                         )}
                       </td>
 
-                      {/* Plan */}
+                      {/* Plan / Custom Pricing */}
                       <td className="py-4 px-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                          {org.planTier || 'FREE'}
-                        </span>
+                        {org.customPriceMonthly || org.customPriceYearly ? (
+                          <div>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              Custom
+                            </span>
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                              {org.customPriceMonthly ? `₹${(org.customPriceMonthly / 100).toLocaleString('en-IN')}/mo` : ''}
+                              {org.customPriceMonthly && org.customPriceYearly ? ' · ' : ''}
+                              {org.customPriceYearly ? `₹${(org.customPriceYearly / 100).toLocaleString('en-IN')}/yr` : ''}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            {org.planTier || 'FREE'}
+                          </span>
+                        )}
                       </td>
 
                       {/* Users used / max */}
@@ -770,6 +854,18 @@ export default function SuperAdminOrganizationsPage() {
                                 >
                                   <CreditCard className="w-3.5 h-3.5" />
                                   <span>Change Plan...</span>
+                                </button>
+
+                                {/* New: Activate Subscription with custom pricing */}
+                                <button
+                                  onClick={() => {
+                                    handleOpenActivateBilling(org);
+                                    setOpenDropdownId(null);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 flex items-center gap-2 transition"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  <span>{org.orgStatus === 'TRIAL' ? 'Activate Subscription' : 'Edit Billing'}</span>
                                 </button>
 
                                 <button
@@ -1246,41 +1342,50 @@ export default function SuperAdminOrganizationsPage() {
                 </div>
               </div>
 
-              {/* Section 3: Subscription & Quota */}
+              {/* Section 3: Trial & Resource Limits */}
               <div className="space-y-3 pt-2 border-t border-slate-800/80">
                 <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>3. Plan Tier, Status & Storage Quota</span>
+                  <span>3. Trial & Resource Limits</span>
                 </div>
+
+                {/* Trial info banner */}
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3 text-xs text-amber-300">
+                  <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="font-semibold">14-day free trial — no payment required at onboarding</p>
+                    <p className="text-amber-400/70 mt-0.5">You will call the client, negotiate pricing, and activate their subscription after the trial.</p>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1">
-                      Plan Tier
+                      Max Users
                     </label>
-                    <select
-                      value={newOrgForm.planTier}
-                      onChange={(e) => setNewOrgForm({ ...newOrgForm, planTier: e.target.value })}
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={newOrgForm.maxUsers}
+                      onChange={(e) => setNewOrgForm({ ...newOrgForm, maxUsers: Math.max(1, parseInt(e.target.value, 10) || 1) })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    >
-                      <option value="FREE">Free Tier (2 Users, 200 Leads)</option>
-                      <option value="STARTER">Starter Tier (5 Users, 2,000 Leads)</option>
-                      <option value="PRO">Pro Tier (15 Users, 10,000 Leads)</option>
-                      <option value="ENTERPRISE">Enterprise (1,000 Users, 1M Leads)</option>
-                    </select>
+                    />
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1">
-                      Account Status
+                      Max Leads
                     </label>
-                    <select
-                      value={newOrgForm.orgStatus}
-                      onChange={(e) => setNewOrgForm({ ...newOrgForm, orgStatus: e.target.value })}
+                    <input
+                      type="number"
+                      min="100"
+                      max="10000000"
+                      step="100"
+                      value={newOrgForm.maxLeads}
+                      onChange={(e) => setNewOrgForm({ ...newOrgForm, maxLeads: Math.max(100, parseInt(e.target.value, 10) || 100) })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    >
-                      <option value="ACTIVE">Active (Immediate full access)</option>
-                      <option value="TRIAL">Trial (14-day evaluation)</option>
-                    </select>
+                    />
                   </div>
 
                   <div>
@@ -1301,12 +1406,9 @@ export default function SuperAdminOrganizationsPage() {
                   </div>
                 </div>
 
-                {newOrgForm.orgStatus === 'TRIAL' && (
-                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center gap-3 text-xs text-blue-300">
-                    <Clock className="w-4 h-4 text-blue-400 shrink-0" />
-                    <span>Trial duration is set to 14 days from today. You can extend or convert to active anytime.</span>
-                  </div>
-                )}
+                <p className="text-[11px] text-slate-500 pt-1">
+                  💡 Pricing is set <strong className="text-slate-400">after the trial</strong> via the <strong className="text-slate-400">Activate Subscription</strong> button — monthly, yearly, and storage pricing are negotiated per client.
+                </p>
               </div>
 
               {/* Modal Actions */}
@@ -1504,6 +1606,197 @@ export default function SuperAdminOrganizationsPage() {
                     <>
                       <Check className="w-3.5 h-3.5" />
                       <span>Save Plan Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Activate / Edit Billing (Custom Negotiated Pricing) */}
+      {activateBillingOrg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-5 animate-scale-in">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white">
+                    {activateBillingOrg.orgStatus === 'TRIAL' ? 'Activate Subscription' : 'Edit Billing'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Custom negotiated pricing for <strong className="text-slate-200">{activateBillingOrg.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivateBillingOrg(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleActivateBillingSubmit} className="space-y-4">
+              {/* Current status banner */}
+              <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                activateBillingOrg.orgStatus === 'TRIAL'
+                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+              }`}>
+                <Clock className="w-4 h-4 shrink-0" />
+                <span>
+                  Current status: <strong>{activateBillingOrg.orgStatus}</strong>
+                  {activateBillingOrg.trialEndsAt && activateBillingOrg.orgStatus === 'TRIAL' && (
+                    <> · Trial ends {new Date(activateBillingOrg.trialEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</>
+                  )}
+                </span>
+              </div>
+
+              {/* Custom Pricing */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Negotiated Pricing (₹)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Monthly Price (₹/month)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs text-slate-500">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="e.g. 2999"
+                        value={billingForm.customPriceMonthly}
+                        onChange={(e) => setBillingForm({ ...billingForm, customPriceMonthly: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Yearly Price (₹/year)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs text-slate-500">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="e.g. 29999"
+                        value={billingForm.customPriceYearly}
+                        onChange={(e) => setBillingForm({ ...billingForm, customPriceYearly: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Billing Cycle</label>
+                  <select
+                    value={billingForm.billingCycle}
+                    onChange={(e) => setBillingForm({ ...billingForm, billingCycle: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Resource Limits */}
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Resource Limits</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Max Users</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={billingForm.maxUsers}
+                      onChange={(e) => setBillingForm({ ...billingForm, maxUsers: parseInt(e.target.value, 10) || 1 })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Max Leads</label>
+                    <input
+                      type="number"
+                      min="100"
+                      step="100"
+                      value={billingForm.maxLeads}
+                      onChange={(e) => setBillingForm({ ...billingForm, maxLeads: parseInt(e.target.value, 10) || 100 })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Storage (GB)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={billingForm.storageQuotaGB}
+                      onChange={(e) => setBillingForm({ ...billingForm, storageQuotaGB: parseInt(e.target.value, 10) || 1 })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Internal Billing Notes (optional)</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Client negotiated ₹2500/mo, agreed on 15 users..."
+                  value={billingForm.billingNotes}
+                  onChange={(e) => setBillingForm({ ...billingForm, billingNotes: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition resize-none"
+                />
+              </div>
+
+              {/* Activate now toggle */}
+              {activateBillingOrg.orgStatus === 'TRIAL' && (
+                <div
+                  className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl cursor-pointer"
+                  onClick={() => setBillingForm((f) => ({ ...f, activateNow: !f.activateNow }))}
+                >
+                  <div className={`w-9 h-5 rounded-full flex items-center transition-colors ${billingForm.activateNow ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                    <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform mx-0.5 ${billingForm.activateNow ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-300">Activate subscription now</p>
+                    <p className="text-[11px] text-emerald-400/70">Turn off to save pricing details but keep client in trial.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setActivateBillingOrg(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingBilling}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 transition shadow-lg shadow-emerald-600/30 disabled:opacity-50"
+                >
+                  {savingBilling ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{billingForm.activateNow ? 'Activate Subscription' : 'Save Billing Details'}</span>
                     </>
                   )}
                 </button>

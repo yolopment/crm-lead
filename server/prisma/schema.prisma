@@ -206,10 +206,17 @@ model Organization {
   orgStatus               OrgStatus    @default(TRIAL)
   planTier                PlanTier     @default(FREE)
   trialEndsAt             DateTime?
-  maxUsers                Int          @default(3)
-  maxLeads                Int          @default(500)
-  storageQuotaBytes       BigInt       @default(1073741824)   // 1 GB default
+  maxUsers                Int          @default(5)
+  maxLeads                Int          @default(2000)
+  storageQuotaBytes       BigInt       @default(16106127360)  // 15 GB default
   storageUsedBytes        BigInt       @default(0)
+
+  // Custom Negotiated Pricing (set by Super Admin after trial)
+  customPriceMonthly      Int?         // Monthly price in paise (₹1 = 100 paise), null = not set yet
+  customPriceYearly       Int?         // Yearly price in paise, null = not set yet
+  billingCycle            String?      // "monthly" | "yearly", set when activated
+  activatedAt             DateTime?    // When subscription was manually activated after trial
+  billingNotes            String?      @db.Text // Super Admin internal notes about this client's pricing
 
   // Per-Client Google Drive OAuth
   gdriveAccessToken       String?      @db.Text // Encrypted OAuth access token
