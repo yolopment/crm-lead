@@ -847,24 +847,27 @@ function renderSuperAdminPage(): string {
       document.getElementById('adminEmailDisplay').textContent = admin.email || 'admin@crmlead.com';
 
       try {
-        const res = await fetch('/api/v1/superadmin/dashboard/stats', {
+        const statsRes = await fetch('/api/v1/superadmin/dashboard/stats', {
           headers: { 'Authorization': 'Bearer ' + token }
         });
-        if (res.status === 401 || res.status === 403) {
+        if (statsRes.status === 401 || statsRes.status === 403) {
           handleSuperAdminLogout();
           return;
         }
-        const data = await res.json();
-        if (data.stats) {
-          document.getElementById('statOrgs').textContent = data.stats.totalOrganizations ?? 1;
-          document.getElementById('statActiveOrgs').textContent = data.stats.activeOrganizations ?? 1;
-          document.getElementById('statUsers').textContent = data.stats.totalUsers ?? 1;
-          document.getElementById('statCalls').textContent = data.stats.totalCalls ?? 2;
-          document.getElementById('statLeads').textContent = data.stats.totalLeads ?? 2;
-        }
-        if (data.recentOrganizations) {
+        const data = await statsRes.json();
+        document.getElementById('statOrgs').textContent = data.totalOrgs ?? 1;
+        document.getElementById('statActiveOrgs').textContent = data.activeOrgs ?? 1;
+        document.getElementById('statUsers').textContent = data.totalUsers ?? 1;
+        document.getElementById('statCalls').textContent = data.totalCalls ?? 0;
+        document.getElementById('statLeads').textContent = data.totalLeads ?? 0;
+
+        const orgsRes = await fetch('/api/v1/superadmin/organizations?page=1&limit=10', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const orgsData = await orgsRes.json();
+        if (orgsData.organizations && orgsData.organizations.length > 0) {
           const tbody = document.getElementById('orgsTableBody');
-          tbody.innerHTML = data.recentOrganizations.map(o => \`
+          tbody.innerHTML = orgsData.organizations.map(o => \`
             <tr>
               <td><strong>\${o.name}</strong></td>
               <td><code>\${o.slug}</code></td>
@@ -874,7 +877,7 @@ function renderSuperAdminPage(): string {
           \`).join('');
         }
       } catch (e) {
-        console.warn('Dashboard stats fetch failed:', e);
+        console.warn('Dashboard fetch failed:', e);
       }
     }
 
