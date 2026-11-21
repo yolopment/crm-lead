@@ -338,14 +338,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Right Status Actions */}
           <div className="flex items-center gap-2.5">
-            {/* Trial Badge — Dynamic countdown (Admins only) */}
-            {!isAgent && isTrial && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[11px] font-semibold border border-amber-200">
-                <Clock className="w-3 h-3 text-amber-500" />
-                <span>Trial {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} left</span>
-              </span>
-            )}
-
             {/* Download StaffCaller Android App Button */}
             <a
               href="/downloads/staffcaller.apk"
@@ -501,18 +493,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>Your organization account is currently suspended. Please contact your platform administrator.</span>
-            </div>
-          </div>
-        )}
-
-        {/* Trial Evaluation Countdown Banner */}
-        {!isSuspended && isTrial && (
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-1.5 text-xs font-medium flex items-center justify-between shadow-xs z-20">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-              <span>
-                <strong>Evaluation Trial:</strong> You have {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} remaining in your evaluation trial. Plans and quotas are managed by your administrator.
-              </span>
             </div>
           </div>
         )}

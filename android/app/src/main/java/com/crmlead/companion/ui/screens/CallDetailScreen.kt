@@ -54,6 +54,7 @@ fun CallDetailScreen(
     val client = remember { OkHttpClient() }
 
     var showOutcomeSheet by remember { mutableStateOf(false) }
+    var showConvertSheet by remember { mutableStateOf(false) }
     var callInfoExpanded by remember { mutableStateOf(true) }
     var currentCall by remember { mutableStateOf(call) }
 
@@ -221,23 +222,46 @@ fun CallDetailScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Primary Button: [+ Add outcome] matching Screenshot 7
-            Button(
-                onClick = { showOutcomeSheet = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+            // Action Buttons: [+ Add outcome] & [+ Convert to Lead]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (currentCall.notes.isNullOrBlank() && currentCall.tags.isNullOrBlank()) "Add outcome" else "Edit outcome",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Button(
+                    onClick = { showOutcomeSheet = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (currentCall.notes.isNullOrBlank() && currentCall.tags.isNullOrBlank()) "Outcome" else "Outcome",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                Button(
+                    onClick = { showConvertSheet = true },
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                ) {
+                    Icon(Icons.Default.PersonAdd, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Convert to Lead",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -472,6 +496,21 @@ fun CallDetailScreen(
                 currentCall = updatedCall
                 onOutcomeSaved(updatedCall)
                 showOutcomeSheet = false
+            }
+        )
+    }
+
+    if (showConvertSheet) {
+        ConvertToLeadBottomSheet(
+            phoneNumber = currentCall.phoneNumber,
+            initialName = currentCall.contactName?.takeIf { it.isNotBlank() } ?: currentCall.phoneNumber,
+            serverUrl = serverUrl,
+            token = token,
+            onDismiss = { showConvertSheet = false },
+            onConverted = { newName ->
+                currentCall = currentCall.copy(contactName = newName)
+                onOutcomeSaved(currentCall)
+                showConvertSheet = false
             }
         )
     }
@@ -753,6 +792,181 @@ fun CallOutcomeBottomSheet(
             ) {
                 Text(
                     text = if (isSaving) "Saving..." else "Save outcome",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConvertToLeadBottomSheet(
+    phoneNumber: String,
+    initialName: String,
+    serverUrl: String,
+    token: String,
+    onDismiss: () -> Unit,
+    onConverted: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val client = remember { OkHttpClient() }
+
+    var leadName by remember { mutableStateOf(initialName) }
+    var leadStage by remember { mutableStateOf("NEW") }
+    var notesText by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
+
+    val stageOptions = listOf("NEW", "CONTACTED", "QUALIFIED", "WON")
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "Convert to CRM Lead",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextDark
+            )
+            Text(
+                text = "Record this contact and all its past/future calls under a Lead",
+                fontSize = 12.sp,
+                color = TextSubtle
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Contact Name Input
+            Text("Lead Name", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = leadName,
+                onValueChange = { leadName = it },
+                placeholder = { Text("e.g. Rahul Sharma") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Phone number
+            Text("Phone Number", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = phoneNumber,
+                onValueChange = {},
+                readOnly = true,
+                enabled = false,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Stage Selection
+            Text("Stage", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                stageOptions.forEach { stage ->
+                    val isSelected = leadStage == stage
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) BrandBlue else Color(0xFFF1F5F9))
+                            .clickable { leadStage = stage }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stage,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else TextDark
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Notes
+            Text("Notes (optional)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = notesText,
+                onValueChange = { notesText = it },
+                placeholder = { Text("Call summary or requirements...") },
+                modifier = Modifier.fillMaxWidth().height(60.dp),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    if (leadName.isBlank()) return@Button
+                    isSaving = true
+                    coroutineScope.launch {
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val cleanBase = serverUrl.removeSuffix("/")
+                                val url = "$cleanBase/api/v1/calls/convert-to-lead"
+                                val json = JSONObject().apply {
+                                    put("phoneNumber", phoneNumber)
+                                    put("fullName", leadName.trim())
+                                    put("stage", leadStage)
+                                    put("notes", notesText.trim())
+                                }
+                                val body = json.toString().toRequestBody("application/json".toMediaType())
+                                val request = Request.Builder()
+                                    .url(url)
+                                    .addHeader("Authorization", "Bearer $token")
+                                    .post(body)
+                                    .build()
+
+                                val response = client.newCall(request).execute()
+                                withContext(Dispatchers.Main) {
+                                    if (response.isSuccessful) {
+                                        Toast.makeText(context, "Converted to CRM Lead!", Toast.LENGTH_SHORT).show()
+                                        onConverted(leadName.trim())
+                                    } else {
+                                        Toast.makeText(context, "Failed to convert lead", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            } finally {
+                                withContext(Dispatchers.Main) {
+                                    isSaving = false
+                                }
+                            }
+                        }
+                    }
+                },
+                enabled = leadName.isNotBlank() && !isSaving,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+            ) {
+                Text(
+                    text = if (isSaving) "Saving Lead..." else "Save as Lead",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )

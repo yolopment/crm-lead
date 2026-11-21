@@ -26,11 +26,17 @@ export class AuthController {
       const hashedPassword = await bcrypt.hash(password, 10);
       const slug = organizationName.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(1000 + Math.random() * 9000);
 
+      const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7-day training trial
       const organization = await prisma.organization.create({
         data: {
           name: organizationName,
           slug,
           phone,
+          orgStatus: 'TRIAL',
+          trialEndsAt,
+          maxUsers: 2,
+          maxLeads: 1000000000,
+          storageQuotaBytes: BigInt(524288000), // 500 MB
           users: {
             create: {
               name,
@@ -224,7 +230,10 @@ export class AuthController {
             slug,
             orgStatus: 'TRIAL',
             planTier: 'FREE',
-            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14-day trial
+            trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7-day training trial
+            maxUsers: 2,
+            maxLeads: 1000000000,
+            storageQuotaBytes: BigInt(524288000), // 500 MB default
             users: {
               create: {
                 name,

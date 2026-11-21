@@ -1705,6 +1705,7 @@ export default function SuperAdminOrganizationsPage() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
                   >
                     <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
                     <option value="yearly">Yearly</option>
                   </select>
                 </div>

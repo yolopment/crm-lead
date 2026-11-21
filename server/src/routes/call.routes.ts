@@ -27,6 +27,8 @@ router.get('/stats', authenticate, CallController.getStats);
 router.get('/activity', authenticate, CallController.getActivity);
 router.post('/:callId/notes', authenticate, CallController.addNote);
 router.post('/:callId/outcome', authenticate, CallController.setOutcome);
+router.post('/convert-to-lead', authenticate, CallController.convertToLead);
+router.post('/:callId/convert-to-lead', authenticate, CallController.convertToLead);
 
 export default router;
 

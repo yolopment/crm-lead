@@ -84,28 +84,17 @@ export class CallController {
           continue;
         }
 
-        // 1. Find or auto-create corresponding Lead by phone number
-        let lead = await prisma.lead.findFirst({
+        // 1. Find corresponding Lead by phone number (if already registered as a lead)
+        const lead = await prisma.lead.findFirst({
           where: {
             orgId,
             phone: cleanPhone,
           },
         });
 
-        if (!lead) {
-          lead = await prisma.lead.create({
-            data: {
-              orgId,
-              phone: cleanPhone,
-              fullName: trimmedContactName || (cleanPhone.length >= 4 ? `Lead (${cleanPhone.slice(-4)})` : cleanPhone),
-              source: direction === 'INBOUND' ? 'inbound_call' : 'outbound_call',
-              assignedToId: userId,
-              stage: durationSec > 0 ? LeadStage.CONTACTED : LeadStage.NEW,
-            },
-          });
-        } else if (trimmedContactName && (!lead.fullName || lead.fullName.startsWith('Lead (') || lead.fullName === cleanPhone)) {
+        if (lead && trimmedContactName && (!lead.fullName || lead.fullName.startsWith('Lead (') || lead.fullName === cleanPhone)) {
           // Upgrade generic placeholder lead name to the phonebook contact name
-          lead = await prisma.lead.update({
+          await prisma.lead.update({
             where: { id: lead.id },
             data: { fullName: trimmedContactName },
           });
@@ -120,12 +109,12 @@ export class CallController {
             ? CallStatus.BUSY
             : CallStatus.CONNECTED;
 
-        // 3. Create Call record in SQL database
+        // 3. Create Call record in SQL database (leadId is null if not yet converted to a lead)
         const createdCall = await prisma.call.create({
           data: {
             orgId,
             userId,
-            leadId: lead.id,
+            leadId: lead ? lead.id : null,
             phoneNumber: cleanPhone,
             direction: callDir,
             status: callStatus,
@@ -303,17 +292,7 @@ export class CallController {
         where: { orgId, phone: { contains: cleanPhone.slice(-7) } },
       });
 
-      if (!lead && cleanPhone) {
-        lead = await prisma.lead.create({
-          data: {
-            orgId,
-            phone: cleanPhone,
-            fullName: trimmedContactName || (cleanPhone.length >= 4 ? `Lead (${cleanPhone.slice(-4)})` : cleanPhone),
-            source: 'inbound_call',
-            assignedToId: req.user!.id,
-          },
-        });
-      } else if (lead && trimmedContactName && (!lead.fullName || lead.fullName.startsWith('Lead (') || lead.fullName === cleanPhone)) {
+      if (lead && trimmedContactName && (!lead.fullName || lead.fullName.startsWith('Lead (') || lead.fullName === cleanPhone)) {
         lead = await prisma.lead.update({
           where: { id: lead.id },
           data: { fullName: trimmedContactName },
@@ -1018,6 +997,120 @@ export class CallController {
       res.status(200).json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to complete dial.' });
+    }
+  }
+
+  /**
+   * Explicitly convert an unlinked Call into a Lead
+   * POST /api/v1/calls/:callId/convert-to-lead or POST /api/v1/calls/convert-to-lead
+   */
+  static async convertToLead(req: Request, res: Response): Promise<void> {
+    try {
+      const orgId = req.user!.orgId;
+      const currentUserId = req.user!.id;
+      const isAgent = req.user!.role === Role.AGENT;
+      const callId = req.params.callId || req.params.id || req.body.callId;
+      const { phoneNumber, fullName, stage, email, notes, tags } = req.body;
+
+      let call: any = null;
+      let rawPhone = phoneNumber;
+
+      if (callId) {
+        call = await prisma.call.findFirst({
+          where: { id: String(callId), orgId },
+          include: { lead: true },
+        });
+
+        if (call) {
+          rawPhone = rawPhone || call.phoneNumber;
+        }
+      }
+
+      if (!rawPhone && !call) {
+        res.status(400).json({ error: 'Call ID or Phone number is required to convert to a lead.' });
+        return;
+      }
+
+      const cleanPhone = String(rawPhone).replace(/[\s\-\(\)]/g, '');
+
+      // If agent, ensure call belongs to agent (if call was found)
+      if (isAgent && call && call.userId !== currentUserId) {
+        res.status(403).json({ error: 'Access denied. You can only convert your own calls.' });
+        return;
+      }
+
+      // Check if a Lead already exists for this phone number
+      let lead = await prisma.lead.findFirst({
+        where: { orgId, phone: cleanPhone },
+      });
+
+      const parsedStage = (stage && stage in LeadStage) ? (stage as LeadStage) : LeadStage.NEW;
+
+      if (!lead) {
+        lead = await prisma.lead.create({
+          data: {
+            orgId,
+            phone: cleanPhone,
+            fullName: fullName?.trim() || (cleanPhone.length >= 4 ? `Lead (${cleanPhone.slice(-4)})` : cleanPhone),
+            email: email?.trim() || null,
+            stage: parsedStage,
+            source: 'phone_call',
+            assignedToId: call?.userId || currentUserId,
+            notes: notes?.trim() || call?.notes || null,
+            tags: tags?.trim() || call?.tags || null,
+          },
+        });
+      } else {
+        const updateData: any = {};
+        if (fullName?.trim()) updateData.fullName = fullName.trim();
+        if (email?.trim()) updateData.email = email.trim();
+        if (stage && stage in LeadStage) updateData.stage = stage as LeadStage;
+        if (tags?.trim()) updateData.tags = tags.trim();
+        if (notes?.trim()) updateData.notes = notes.trim();
+
+        if (Object.keys(updateData).length > 0) {
+          lead = await prisma.lead.update({
+            where: { id: lead.id },
+            data: updateData,
+          });
+        }
+      }
+
+      // Link this call and all other past/present calls with this phone number to the lead
+      await prisma.call.updateMany({
+        where: {
+          orgId,
+          phoneNumber: cleanPhone,
+        },
+        data: {
+          leadId: lead.id,
+        },
+      });
+
+      if (call) {
+        await prisma.call.update({
+          where: { id: call.id },
+          data: { leadId: lead.id },
+        });
+      }
+
+      console.log(`✅ Converted call to lead: "${lead.fullName}" (${cleanPhone}) for org ${orgId}`);
+
+      res.status(200).json({
+        success: true,
+        message: 'Successfully converted call to Lead.',
+        lead: {
+          id: lead.id,
+          fullName: lead.fullName,
+          phone: lead.phone,
+          email: lead.email,
+          stage: lead.stage,
+          tags: lead.tags,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error converting call to lead:', error);
+      res.status(500).json({ error: error.message || 'Failed to convert call to lead.' });
     }
   }
 }

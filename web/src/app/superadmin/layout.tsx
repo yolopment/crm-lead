@@ -41,8 +41,10 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   const [tokenChecked, setTokenChecked] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const normalizedPath = (pathname || '').replace(/\/$/, '');
-  const isLoginPage = normalizedPath === '/superadmin/login';
+  const normalizedPath = (pathname || '').replace(/\/+$/, '');
+  const isLoginPage =
+    normalizedPath === '/superadmin/login' ||
+    (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/superadmin/login');
 
   // Auth Guard
   useEffect(() => {
@@ -54,6 +56,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
     const token = getSaasToken();
     if (!token) {
       router.replace('/superadmin/login');
+      setTokenChecked(true);
       return;
     }
 
