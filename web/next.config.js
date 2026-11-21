@@ -1,14 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:5001'}/api/:path*`,
-      },
-    ];
-  },
+  output: 'export',
+  images: { unoptimized: true },
+  trailingSlash: true,
 };
 
 module.exports = nextConfig;
-

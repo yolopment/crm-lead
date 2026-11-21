@@ -1,6 +1,16 @@
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
+
+function getPublicPath(relPath: string): string | null {
+  const candidate1 = path.resolve(process.cwd(), 'public', relPath);
+  if (fs.existsSync(candidate1)) return candidate1;
+  const candidate2 = path.resolve(__dirname, '../../public', relPath);
+  if (fs.existsSync(candidate2)) return candidate2;
+  return null;
+}
 
 const LLMS_TEXT = `# StaffCaller Cloud
 > Production SaaS CRM for Automatic Call Tracking, Audio Recording Sync & Lead Distribution
@@ -584,21 +594,103 @@ router.get('/privacy', (req: Request, res: Response) => {
   `));
 });
 
-// 7. Interactive Super Admin Portal (/superadmin and /superadmin/login)
-router.get('/superadmin', (req: Request, res: Response) => {
+// 7. Static Next.js chunks & public assets
+router.use('/_next', (req: Request, res: Response, next) => {
+  const nextPath = getPublicPath('_next');
+  if (nextPath) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return express.static(nextPath)(req, res, next);
+  }
+  next();
+});
+
+router.use('/downloads', (req: Request, res: Response, next) => {
+  const dlPath = getPublicPath('downloads');
+  if (dlPath) {
+    return express.static(dlPath)(req, res, next);
+  }
+  next();
+});
+
+// 8. Super Admin Portal & Next.js React App routes
+router.get(['/superadmin/login', '/superadmin/login/'], (req: Request, res: Response) => {
+  const loginPath = getPublicPath('superadmin/login/index.html');
+  if (loginPath) {
+    return res.sendFile(loginPath);
+  }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(renderSuperAdminPage());
 });
 
-router.get('/superadmin/login', (req: Request, res: Response) => {
+router.get(['/superadmin', '/superadmin/'], (req: Request, res: Response) => {
+  const indexPath = getPublicPath('superadmin/index.html');
+  if (indexPath) {
+    return res.sendFile(indexPath);
+  }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(renderSuperAdminPage());
 });
 
-// 8. Interactive Tenant CRM Login (/login)
-router.get('/login', (req: Request, res: Response) => {
+router.get('/superadmin/:section*', (req: Request, res: Response) => {
+  const section = req.params.section;
+  const sectionPath = getPublicPath(`superadmin/${section}/index.html`);
+  if (sectionPath) {
+    return res.sendFile(sectionPath);
+  }
+  const fallback = getPublicPath('superadmin/index.html');
+  if (fallback) {
+    return res.sendFile(fallback);
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderSuperAdminPage());
+});
+
+// 9. Tenant CRM Portal & Next.js React Dashboard routes
+router.get(['/login', '/login/'], (req: Request, res: Response) => {
+  const loginPath = getPublicPath('login/index.html');
+  if (loginPath) {
+    return res.sendFile(loginPath);
+  }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(renderLoginPage());
+});
+
+router.get(['/register', '/register/'], (req: Request, res: Response) => {
+  const regPath = getPublicPath('register/index.html');
+  if (regPath) {
+    return res.sendFile(regPath);
+  }
+  res.redirect('/login');
+});
+
+router.get(['/dashboard', '/dashboard/'], (req: Request, res: Response) => {
+  const dashPath = getPublicPath('dashboard/index.html');
+  if (dashPath) {
+    return res.sendFile(dashPath);
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderLoginPage());
+});
+
+router.get('/dashboard/:section*', (req: Request, res: Response) => {
+  const section = req.params.section;
+  const sectionPath = getPublicPath(`dashboard/${section}/index.html`);
+  if (sectionPath) {
+    return res.sendFile(sectionPath);
+  }
+  const fallback = getPublicPath('dashboard/index.html');
+  if (fallback) {
+    return res.sendFile(fallback);
+  }
+  res.redirect('/dashboard');
+});
+
+router.get('/forms/:slug', (req: Request, res: Response) => {
+  const formPath = getPublicPath('forms/default/index.html');
+  if (formPath) {
+    return res.sendFile(formPath);
+  }
+  res.redirect('/');
 });
 
 function renderSuperAdminPage(): string {

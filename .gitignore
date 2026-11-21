@@ -19,3 +19,4 @@ uploads/
 local.properties
 *.jks
 *.keystore
+web/out/
