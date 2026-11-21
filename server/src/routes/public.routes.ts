@@ -492,6 +492,10 @@ router.get('/superadmin/:section*', (req: Request, res: Response) => {
 });
 
 // 7. Tenant CRM Portal & Dashboard routes
+router.get(['/auth/google', '/login/google'], (req: Request, res: Response) => {
+  res.redirect('/api/v1/auth/google');
+});
+
 router.get(['/login', '/login/'], (req: Request, res: Response) => {
   const loginPath = getPublicPath('login/index.html');
   if (loginPath) {

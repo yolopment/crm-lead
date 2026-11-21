@@ -46,6 +46,18 @@ export const config = {
     }
     return raw || 'https://staffcaller.cloud/api/v1/integrations/gdrive/callback';
   },
+  get googleAuthRedirectUri(): string {
+    const raw = (process.env.GOOGLE_AUTH_REDIRECT_URI || '').trim();
+    if (raw.includes('api.staffcaller.cloud')) {
+      return raw.replace('api.staffcaller.cloud', 'staffcaller.cloud');
+    }
+    if (process.env.NODE_ENV === 'production') {
+      if (!raw || raw.includes('localhost') || raw.includes('127.0.0.1')) {
+        return 'https://staffcaller.cloud/api/v1/auth/google/callback';
+      }
+    }
+    return raw || 'https://staffcaller.cloud/api/v1/auth/google/callback';
+  },
   get frontendUrl(): string {
     const raw = (process.env.FRONTEND_URL || '').trim();
     if (raw.includes('api.staffcaller.cloud')) {

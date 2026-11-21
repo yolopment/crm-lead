@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import { google } from 'googleapis';
 import { prisma } from '../utils/prisma.js';
 import { config } from '../config/index.js';
 import { Role } from '@prisma/client';
@@ -134,6 +136,141 @@ export class AuthController {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error during login.' });
+    }
+  }
+
+  static async googleAuth(req: Request, res: Response): Promise<void> {
+    try {
+      if (!config.googleOAuthClientId || !config.googleOAuthClientSecret) {
+        res.redirect('/login?error=Google%20OAuth%20not%20configured%20on%20server');
+        return;
+      }
+
+      const oauth2Client = new google.auth.OAuth2(
+        config.googleOAuthClientId,
+        config.googleOAuthClientSecret,
+        config.googleAuthRedirectUri
+      );
+
+      const authUrl = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'openid',
+        ],
+        prompt: 'select_account',
+      });
+
+      res.redirect(authUrl);
+    } catch (error: any) {
+      console.error('Error initiating Google OAuth:', error);
+      res.redirect('/login?error=' + encodeURIComponent(error.message || 'Failed to initiate Google login'));
+    }
+  }
+
+  static async googleAuthCallback(req: Request, res: Response): Promise<void> {
+    try {
+      const { code, error } = req.query;
+
+      if (error) {
+        res.redirect(`/login?error=${encodeURIComponent(String(error))}`);
+        return;
+      }
+
+      if (!code || typeof code !== 'string') {
+        res.redirect('/login?error=Missing%20authorization%20code');
+        return;
+      }
+
+      const oauth2Client = new google.auth.OAuth2(
+        config.googleOAuthClientId,
+        config.googleOAuthClientSecret,
+        config.googleAuthRedirectUri
+      );
+
+      const { tokens } = await oauth2Client.getToken(code);
+      oauth2Client.setCredentials(tokens);
+
+      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+      const userInfo = await oauth2.userinfo.get();
+
+      const email = userInfo.data.email;
+      const name = userInfo.data.name || email?.split('@')[0] || 'Google User';
+      const picture = userInfo.data.picture;
+
+      if (!email) {
+        res.redirect('/login?error=Unable%20to%20retrieve%20email%20from%20Google');
+        return;
+      }
+
+      // Check if user already exists
+      let user: any = await prisma.user.findUnique({
+        where: { email },
+        include: { organization: true },
+      });
+
+      if (!user) {
+        // Auto-provision Organization and User for first-time Google sign-in
+        const randomPassword = crypto.randomBytes(16).toString('hex');
+        const hashedPassword = await bcrypt.hash(randomPassword, 10);
+        const orgName = `${name}'s Workspace`;
+        const slug = orgName.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(1000 + Math.random() * 9000);
+        const deviceToken = crypto.randomBytes(8).toString('hex');
+
+        const organization = await prisma.organization.create({
+          data: {
+            name: orgName,
+            slug,
+            orgStatus: 'TRIAL',
+            planTier: 'FREE',
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14-day trial
+            users: {
+              create: {
+                name,
+                email,
+                password: hashedPassword,
+                role: Role.ADMIN,
+                avatarUrl: picture,
+                deviceToken,
+              },
+            },
+          },
+          include: {
+            users: true,
+          },
+        });
+
+        user = {
+          ...organization.users[0],
+          organization,
+        } as any;
+      } else {
+        // Ensure user has deviceToken & updated avatar
+        const updates: any = {};
+        if (!user.avatarUrl && picture) updates.avatarUrl = picture;
+        if (!user.deviceToken) {
+          updates.deviceToken = crypto.randomBytes(8).toString('hex');
+        }
+        if (Object.keys(updates).length > 0) {
+          user = (await prisma.user.update({
+            where: { id: user.id },
+            data: updates,
+            include: { organization: true },
+          })) as any;
+        }
+      }
+
+      const token = jwt.sign(
+        { userId: user.id, orgId: user.orgId },
+        config.jwtSecret,
+        { expiresIn: config.jwtExpiresIn as any }
+      );
+
+      res.redirect(`/login?google_token=${encodeURIComponent(token)}`);
+    } catch (error: any) {
+      console.error('Error in Google OAuth callback:', error);
+      res.redirect('/login?error=' + encodeURIComponent(error.message || 'Google sign in failed'));
     }
   }
 
