@@ -32,9 +32,12 @@ import java.util.*
 fun AnalyticsScreen(
     callsList: List<CallEntity>,
     userName: String,
+    userRole: String = "AGENT",
     onOpenDrawer: () -> Unit
 ) {
+    val isAgent = userRole.equals("AGENT", ignoreCase = true)
     var selectedTab by remember { mutableStateOf(0) } // 0 = My numbers, 1 = Team
+    val effectiveTab = if (isAgent) 0 else selectedTab
     var selectedRangeIndex by remember { mutableStateOf(0) } // 0 = 7 days, 1 = 30 days, 2 = 12 weeks, etc.
     val ranges = listOf("7 days", "30 days", "12 weeks", "This month", "Custom")
 
@@ -134,51 +137,53 @@ fun AnalyticsScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Segmented Tab Selector
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFE2E8F0))
-                    .padding(3.dp)
-            ) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (selectedTab == 0) Color.White else Color.Transparent)
-                            .clickable { selectedTab = 0 }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "My numbers",
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selectedTab == 0) BrandBlue else TextSubtle,
-                            fontSize = 13.sp
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (selectedTab == 1) Color.White else Color.Transparent)
-                            .clickable { selectedTab = 1 }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Team",
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selectedTab == 1) BrandBlue else TextSubtle,
-                            fontSize = 13.sp
-                        )
+            if (!isAgent) {
+                // Segmented Tab Selector for Admins
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFE2E8F0))
+                        .padding(3.dp)
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedTab == 0) Color.White else Color.Transparent)
+                                .clickable { selectedTab = 0 }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "My numbers",
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 0) BrandBlue else TextSubtle,
+                                fontSize = 13.sp
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedTab == 1) Color.White else Color.Transparent)
+                                .clickable { selectedTab = 1 }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Team",
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 1) BrandBlue else TextSubtle,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // Time Range Pill Chips
             Row(
@@ -209,7 +214,7 @@ fun AnalyticsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            if (selectedTab == 0) {
+            if (effectiveTab == 0) {
                 // TAB 1: MY NUMBERS
 
                 // Card 1: Your overview

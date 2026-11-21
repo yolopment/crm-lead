@@ -54,6 +54,7 @@ fun CallsScreen(
     serverUrl: String,
     token: String,
     userName: String,
+    userRole: String = "AGENT",
     onOpenDrawer: () -> Unit,
     onCheckNewRecordings: () -> Unit,
     onRetrySync: () -> Unit,
@@ -66,8 +67,10 @@ fun CallsScreen(
     onDismissImportPrompt: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val isAgent = userRole.equals("AGENT", ignoreCase = true)
     var selectedCallForDetail by remember { mutableStateOf<CallEntity?>(null) }
     var selectedTab by remember { mutableStateOf(0) } // 0 = My calls, 1 = Team
+    val effectiveTab = if (isAgent) 0 else selectedTab
     var showMenu by remember { mutableStateOf(false) }
     var showRepsSheet by remember { mutableStateOf(false) }
     var selectedRepFilter by remember { mutableStateOf("All reps") }
@@ -233,55 +236,57 @@ fun CallsScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
-            // Segmented Tab Selector (My calls | Team)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFE2E8F0))
-                    .padding(3.dp)
-            ) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (selectedTab == 0) Color.White else Color.Transparent)
-                            .clickable { selectedTab = 0 }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "My calls",
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selectedTab == 0) BrandBlue else TextSubtle,
-                            fontSize = 13.sp
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (selectedTab == 1) Color.White else Color.Transparent)
-                            .clickable { selectedTab = 1 }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Team",
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selectedTab == 1) BrandBlue else TextSubtle,
-                            fontSize = 13.sp
-                        )
+            if (!isAgent) {
+                // Segmented Tab Selector (My calls | Team) for Admins
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFE2E8F0))
+                        .padding(3.dp)
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedTab == 0) Color.White else Color.Transparent)
+                                .clickable { selectedTab = 0 }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "My calls",
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 0) BrandBlue else TextSubtle,
+                                fontSize = 13.sp
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedTab == 1) Color.White else Color.Transparent)
+                                .clickable { selectedTab = 1 }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Team",
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 1) BrandBlue else TextSubtle,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(6.dp))
+            }
 
             // Subtitle Caption matching Images 6 & 7
             Text(
-                text = if (selectedTab == 0) "Calls on this device · captured & synchronized" else "Saved in StaffCaller · a call shows after the rep's phone uploads it",
+                text = if (effectiveTab == 0) "Calls on this device · captured & synchronized" else "Saved in StaffCaller · a call shows after the rep's phone uploads it",
                 fontSize = 12.sp,
                 color = TextSubtle,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
@@ -289,7 +294,7 @@ fun CallsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (selectedTab == 0) {
+            if (effectiveTab == 0) {
                 // Background Import Progress Status (Non-blocking)
                 if (isBackgroundImporting) {
                     Card(
@@ -553,25 +558,34 @@ fun CallsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFF1F5F9))
-                        .clickable { showRepsSheet = true }
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (selectedTab == 0) {
-                        Icon(Icons.Default.FilterList, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(selectedRepFilter, fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
-                    } else {
-                        Icon(Icons.Default.Group, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(selectedRepFilter, fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
+                if (!isAgent) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF1F5F9))
+                            .clickable { showRepsSheet = true }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (effectiveTab == 0) {
+                            Icon(Icons.Default.FilterList, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(selectedRepFilter, fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                        } else {
+                            Icon(Icons.Default.Group, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(selectedRepFilter, fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(14.dp))
+                        }
                     }
+                } else {
+                    Text(
+                        text = "My Activity",
+                        fontSize = 12.sp,
+                        color = TextSubtle,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
                 Text(
@@ -696,7 +710,7 @@ fun CallsScreen(
                                     Spacer(modifier = Modifier.height(2.dp))
 
                                     Text(
-                                        text = "By ${userName.ifBlank { "Aftab Sk" }}",
+                                        text = "By ${userName.ifBlank { "Agent" }}",
                                         fontSize = 12.sp,
                                         color = TextSubtle
                                     )

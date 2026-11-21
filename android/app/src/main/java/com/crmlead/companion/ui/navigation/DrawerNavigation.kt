@@ -38,6 +38,7 @@ fun LeadZamDrawerContent(
     currentScreen: AppNavScreen,
     userName: String,
     orgName: String,
+    userRole: String = "AGENT",
     onNavigate: (AppNavScreen) -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -121,8 +122,13 @@ fun LeadZamDrawerContent(
                         fontSize = 14.sp,
                         color = TextDark
                     )
+                    val roleLabel = when (userRole.uppercase()) {
+                        "SUPER_ADMIN" -> "Super Admin"
+                        "ADMIN" -> "Admin"
+                        else -> "Agent"
+                    }
                     Text(
-                        text = "Agent · $orgName",
+                        text = "$roleLabel · $orgName",
                         fontSize = 11.sp,
                         color = TextSubtle,
                         maxLines = 1
@@ -176,7 +182,7 @@ fun LeadZamDrawerContent(
 
             DrawerNavItem(
                 icon = Icons.Default.People,
-                label = "All Leads",
+                label = if (userRole.equals("AGENT", ignoreCase = true)) "My Leads" else "All Leads",
                 isSelected = currentScreen == AppNavScreen.LEADS,
                 onClick = { onNavigate(AppNavScreen.LEADS) }
             )

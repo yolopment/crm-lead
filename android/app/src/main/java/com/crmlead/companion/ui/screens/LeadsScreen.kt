@@ -47,6 +47,7 @@ data class LeadItem(
 fun LeadsScreen(
     serverUrl: String,
     token: String,
+    userRole: String = "AGENT",
     initialSearchQuery: String = "",
     onOpenDrawer: () -> Unit
 ) {
@@ -151,7 +152,7 @@ fun LeadsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("All Leads", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
+                        Text(if (userRole.equals("AGENT", ignoreCase = true)) "My Leads" else "All Leads", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextDark)
 
                         // Views Dropdown Pill
                         Row(

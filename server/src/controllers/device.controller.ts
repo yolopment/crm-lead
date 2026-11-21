@@ -118,6 +118,7 @@ export class DeviceController {
           id: user.id,
           name: user.name,
           email: user.email,
+          role: user.role,
           organization: user.organization.name,
         },
       });

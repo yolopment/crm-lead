@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val KEY_PAIRED_USER = "paired_user"
+        const val KEY_PAIRED_ROLE = "paired_role"
         const val KEY_PAIRED_ORG = "paired_org"
         const val KEY_IS_PAIRED = "is_paired"
         const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
@@ -134,11 +135,13 @@ class MainActivity : ComponentActivity() {
     private var serverUrlState by mutableStateOf(DEFAULT_SERVER_URL)
     private var showServerChangeDialog by mutableStateOf(false)
     private var tempServerUrl by mutableStateOf(DEFAULT_SERVER_URL)
+    private var userRoleState by mutableStateOf("AGENT")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+        userRoleState = prefs.getString(KEY_PAIRED_ROLE, "AGENT") ?: "AGENT"
 
         // Automatic Server Migration to staffcaller.cloud
         var currentSavedUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
@@ -192,8 +195,8 @@ class MainActivity : ComponentActivity() {
                     color = Color(0xFFF8FAFC)
                 ) {
                     val callsList by db.callDao().getAllCallsFlow().collectAsState(initial = emptyList())
-                    val userName = prefs.getString(KEY_PAIRED_USER, "AFTAB SEKH") ?: "AFTAB SEKH"
-                    val orgName = prefs.getString(KEY_PAIRED_ORG, "YOLOPMENT") ?: "YOLOPMENT"
+                    val userName = prefs.getString(KEY_PAIRED_USER, "Agent") ?: "Agent"
+                    val orgName = prefs.getString(KEY_PAIRED_ORG, "StaffCaller") ?: "StaffCaller"
 
                     // Server Change Dialog
                     if (showServerChangeDialog) {
@@ -316,6 +319,7 @@ class MainActivity : ComponentActivity() {
                                     currentScreen = currentNavScreen,
                                     userName = userName,
                                     orgName = orgName,
+                                    userRole = userRoleState,
                                     onNavigate = { screen ->
                                         currentNavScreen = screen
                                         scope.launch { drawerState.close() }
@@ -335,6 +339,7 @@ class MainActivity : ComponentActivity() {
                                         serverUrl = serverUrlState,
                                         token = devToken,
                                         userName = userName,
+                                        userRole = userRoleState,
                                         onOpenDrawer = { scope.launch { drawerState.open() } },
                                         onCheckNewRecordings = { syncRecordingsWithBackend() },
                                         onRetrySync = { triggerManualSync() },
@@ -358,6 +363,7 @@ class MainActivity : ComponentActivity() {
                                     LeadsScreen(
                                         serverUrl = serverUrlState,
                                         token = devToken,
+                                        userRole = userRoleState,
                                         initialSearchQuery = targetLeadQuery,
                                         onOpenDrawer = { scope.launch { drawerState.open() } }
                                     )
@@ -367,6 +373,7 @@ class MainActivity : ComponentActivity() {
                                     FollowupsScreen(
                                         serverUrl = serverUrlState,
                                         token = devToken,
+                                        userRole = userRoleState,
                                         onOpenDrawer = { scope.launch { drawerState.open() } },
                                         onBrowseLeads = { currentNavScreen = AppNavScreen.LEADS }
                                     )
@@ -387,6 +394,7 @@ class MainActivity : ComponentActivity() {
                                     AnalyticsScreen(
                                         callsList = callsList,
                                         userName = userName,
+                                        userRole = userRoleState,
                                         onOpenDrawer = { scope.launch { drawerState.open() } }
                                     )
                                 }
@@ -684,6 +692,7 @@ class MainActivity : ComponentActivity() {
                 val orgObj = json.getJSONObject("organization")
                 val deviceToken = userObj.optString("deviceToken", "")
                 val userName = userObj.optString("name", "User")
+                val userRole = userObj.optString("role", "AGENT")
                 val orgName = orgObj.optString("name", "Organization")
 
                 // Save auth & server configuration
@@ -692,9 +701,12 @@ class MainActivity : ComponentActivity() {
                     .putString(SyncWorker.KEY_SERVER_URL, cleanUrl)
                     .putString(SyncWorker.KEY_DEVICE_TOKEN, deviceToken)
                     .putString(KEY_PAIRED_USER, userName)
+                    .putString(KEY_PAIRED_ROLE, userRole)
                     .putString(KEY_PAIRED_ORG, orgName)
                     .putBoolean(KEY_IS_PAIRED, true)
                     .apply()
+
+                userRoleState = userRole
 
                 // Register device with backend
                 pairDeviceHardware(cleanUrl, deviceToken)
@@ -755,15 +767,19 @@ class MainActivity : ComponentActivity() {
                 val userObj = json.getJSONObject("user")
                 val userName = userObj.getString("name")
                 val orgName = userObj.getString("organization")
+                val userRole = userObj.optString("role", "AGENT")
 
                 val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
                 prefs.edit()
                     .putString(SyncWorker.KEY_SERVER_URL, cleanUrl)
                     .putString(SyncWorker.KEY_DEVICE_TOKEN, cleanToken)
                     .putString(KEY_PAIRED_USER, userName)
+                    .putString(KEY_PAIRED_ROLE, userRole)
                     .putString(KEY_PAIRED_ORG, orgName)
                     .putBoolean(KEY_IS_PAIRED, true)
                     .apply()
+
+                userRoleState = userRole
 
                 withContext(Dispatchers.Main) {
                     isSigningIn = false
@@ -796,7 +812,23 @@ class MainActivity : ComponentActivity() {
                 .post(payload.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            httpClient.newCall(request).execute()
+            val resp = httpClient.newCall(request).execute()
+            if (resp.isSuccessful) {
+                val respBody = resp.body?.string() ?: ""
+                val json = JSONObject(respBody)
+                val userObj = json.optJSONObject("user")
+                if (userObj != null) {
+                    val role = userObj.optString("role", "AGENT")
+                    val name = userObj.optString("name", "")
+                    val org = userObj.optString("organization", "")
+                    val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+                    val editor = prefs.edit().putString(KEY_PAIRED_ROLE, role)
+                    if (name.isNotEmpty()) editor.putString(KEY_PAIRED_USER, name)
+                    if (org.isNotEmpty()) editor.putString(KEY_PAIRED_ORG, org)
+                    editor.apply()
+                    userRoleState = role
+                }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -874,7 +906,12 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putBoolean(KEY_IS_PAIRED, false)
+            .remove(KEY_PAIRED_USER)
+            .remove(KEY_PAIRED_ROLE)
+            .remove(KEY_PAIRED_ORG)
+            .remove(SyncWorker.KEY_DEVICE_TOKEN)
             .apply()
+        userRoleState = "AGENT"
         currentStep = SetupStep.SIGN_IN
     }
 

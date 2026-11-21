@@ -62,12 +62,14 @@ data class FollowUpCountsDto(
 fun FollowupsScreen(
     serverUrl: String,
     token: String,
+    userRole: String = "AGENT",
     onOpenDrawer: () -> Unit,
     onBrowseLeads: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val client = remember { OkHttpClient() }
+    val isAgent = userRole.equals("AGENT", ignoreCase = true)
 
     var selectedTab by remember { mutableStateOf(0) } // 0 = Call follow-ups, 1 = To-dos
     var scopeFilter by remember { mutableStateOf("Mine") } // "Mine" vs "Whole team"
@@ -89,7 +91,7 @@ fun FollowupsScreen(
             withContext(Dispatchers.IO) {
                 try {
                     val cleanBase = serverUrl.removeSuffix("/")
-                    val scopeParam = if (scopeFilter == "Mine") "me" else "team"
+                    val scopeParam = if (isAgent || scopeFilter == "Mine") "me" else "team"
                     val tabParam = if (selectedTab == 0) "call_followups" else "todos"
                     val statusParam = if (selectedChipIndex == 3) "completed" else "open"
                     val timeFilterParam = when (selectedChipIndex) {
@@ -208,63 +210,65 @@ fun FollowupsScreen(
                             Text(formattedDate, fontSize = 12.sp, color = TextSubtle)
                         }
 
-                        // Scope dropdown (Mine vs Whole team)
-                        Box {
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFEFF6FF))
-                                    .clickable { showScopeDropdown = true }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Group, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(scopeFilter, fontSize = 12.sp, color = BrandBlue, fontWeight = FontWeight.SemiBold)
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(14.dp))
-                            }
+                        // Scope dropdown (Mine vs Whole team) for Admins
+                        if (!isAgent) {
+                            Box {
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFEFF6FF))
+                                        .clickable { showScopeDropdown = true }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Group, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(scopeFilter, fontSize = 12.sp, color = BrandBlue, fontWeight = FontWeight.SemiBold)
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(14.dp))
+                                }
 
-                            DropdownMenu(
-                                expanded = showScopeDropdown,
-                                onDismissRequest = { showScopeDropdown = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text("Mine", fontWeight = if (scopeFilter == "Mine") FontWeight.Bold else FontWeight.Normal)
-                                            if (scopeFilter == "Mine") {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+                                DropdownMenu(
+                                    expanded = showScopeDropdown,
+                                    onDismissRequest = { showScopeDropdown = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("Mine", fontWeight = if (scopeFilter == "Mine") FontWeight.Bold else FontWeight.Normal)
+                                                if (scopeFilter == "Mine") {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+                                                }
                                             }
+                                        },
+                                        onClick = {
+                                            scopeFilter = "Mine"
+                                            showScopeDropdown = false
                                         }
-                                    },
-                                    onClick = {
-                                        scopeFilter = "Mine"
-                                        showScopeDropdown = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text("Whole team", fontWeight = if (scopeFilter == "Whole team") FontWeight.Bold else FontWeight.Normal)
-                                            if (scopeFilter == "Whole team") {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("Whole team", fontWeight = if (scopeFilter == "Whole team") FontWeight.Bold else FontWeight.Normal)
+                                                if (scopeFilter == "Whole team") {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+                                                }
                                             }
+                                        },
+                                        onClick = {
+                                            scopeFilter = "Whole team"
+                                            showScopeDropdown = false
                                         }
-                                    },
-                                    onClick = {
-                                        scopeFilter = "Whole team"
-                                        showScopeDropdown = false
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
