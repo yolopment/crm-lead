@@ -481,19 +481,17 @@ export default function BillingPage() {
                       <span>Leads Cap</span>
                     </div>
                     <span className="font-mono text-slate-600 text-[11px]">
-                      {data?.usage.leadsCount} / {data?.usage.leadsLimit.toLocaleString()}
+                      {data?.usage.leadsCount} / {data && data.usage.leadsLimit >= 10000000 ? 'Unlimited' : data?.usage.leadsLimit.toLocaleString()}
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-2 rounded-full transition-all duration-500 ${
-                        leadsPct > 90 ? 'bg-rose-500' : 'bg-emerald-600'
-                      }`}
-                      style={{ width: `${leadsPct}%` }}
+                      className="h-2 rounded-full transition-all duration-500 bg-emerald-600"
+                      style={{ width: `${data && data.usage.leadsLimit >= 10000000 ? 5 : leadsPct}%` }}
                     />
                   </div>
                   <span className="text-[10px] text-slate-400 mt-1.5 block">
-                    {data ? (data.usage.leadsLimit - data.usage.leadsCount).toLocaleString() : 0} leads remaining
+                    {data ? (data.usage.leadsLimit >= 10000000 ? 'Unlimited leads allowed' : `${(data.usage.leadsLimit - data.usage.leadsCount).toLocaleString()} leads remaining`) : ''}
                   </span>
                 </div>
 
@@ -505,7 +503,7 @@ export default function BillingPage() {
                       <span>Recording Disk</span>
                     </div>
                     <span className="font-mono text-slate-600 text-[11px]">
-                      {storageUsedMB.toFixed(1)} MB / {storageGB.toFixed(0)} GB
+                      {storageUsedMB.toFixed(1)} MB / {storageGB < 1 ? `${Math.round(storageGB * 1024)} MB` : `${storageGB.toFixed(1)} GB`}
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
@@ -526,217 +524,24 @@ export default function BillingPage() {
             </div>
           </div>
 
-          {/* Plan Selection Matrix */}
-          <div className="space-y-6 pt-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Upgrade Your Plan</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Choose the plan that fits your call volume, telecaller size, and business goals.
-                </p>
-              </div>
-
-              {/* Monthly vs Yearly Toggle */}
-              <div className="inline-flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200 self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('monthly')}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${
-                    billingCycle === 'monthly' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Monthly
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('yearly')}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                    billingCycle === 'yearly' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <span>Yearly</span>
-                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
-                    Save 17%
-                  </span>
-                </button>
-              </div>
+          {/* Managed by Super Administrator Info Box */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-white shadow-xl space-y-3">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-base font-bold text-white">Platform Governance & Subscription Control</h3>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {(data?.availablePlans || []).map((plan) => {
-                const isCurrent = data?.organization.planTier === plan.tier;
-                const isPro = plan.tier === 'PRO';
-                const price = billingCycle === 'yearly' ? plan.priceYearly / 100 : plan.priceMonthly / 100;
-                const isUpgradingThis = upgradingPlanId === plan.id;
-
-                return (
-                  <div
-                    key={plan.id}
-                    className={`rounded-3xl p-6 transition flex flex-col justify-between relative ${
-                      isPro
-                        ? 'bg-gradient-to-b from-blue-50/50 to-white border-2 border-blue-600 shadow-lg'
-                        : 'bg-white border border-slate-200 shadow-xs hover:border-slate-300'
-                    }`}
-                  >
-                    {isPro && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-black tracking-wider uppercase shadow-xs">
-                        Most Popular
-                      </div>
-                    )}
-
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-bold text-slate-900">{plan.displayName}</h3>
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                          {plan.name}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 mb-3 flex items-baseline gap-1">
-                        <span className="text-3xl font-black text-slate-900">
-                          {inrFormatter.format(price)}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          /{billingCycle === 'yearly' ? 'yr' : 'mo'}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[36px]">
-                        {plan.description || 'Comprehensive telecalling & CRM infrastructure.'}
-                      </p>
-
-                      <div className="space-y-2.5 text-xs text-slate-600 border-t border-slate-100 pt-4">
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>
-                            <strong>{plan.maxUsers}</strong> Telecaller seats
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>
-                            <strong>{plan.maxLeads.toLocaleString()}</strong> Leads storage
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>
-                            <strong>{(plan.storageQuotaBytes / (1024 * 1024 * 1024)).toFixed(0)} GB</strong> Cloud storage
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>Auto Call Sync (Companion App)</span>
-                        </div>
-                        {plan.tier !== 'FREE' && (
-                          <div className="flex items-center gap-2">
-                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>Export Leads (CSV & Excel)</span>
-                          </div>
-                        )}
-                        {['PRO', 'ENTERPRISE'].includes(plan.tier) && (
-                          <div className="flex items-center gap-2">
-                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>Meta Ads & Webhooks</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-slate-100">
-                      {isCurrent ? (
-                        <button
-                          disabled
-                          className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-500 text-xs font-bold cursor-default flex items-center justify-center gap-1.5"
-                        >
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Current Plan</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleUpgradePlan(plan)}
-                          disabled={isUpgradingThis}
-                          className={`w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer ${
-                            isPro
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                              : 'bg-slate-900 hover:bg-slate-800 text-white'
-                          }`}
-                        >
-                          {isUpgradingThis ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Processing...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="w-3.5 h-3.5" />
-                              <span>Upgrade to {plan.name}</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Storage Add-ons Section (Phase 5) */}
-          <div className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-3xl p-6 text-white shadow-xl space-y-4 border border-slate-800">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400 px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/80">
-                  Cloud Recording Add-on
-                </span>
-                <h3 className="text-lg font-bold text-white mt-1.5">Need Additional Server Storage?</h3>
-                <p className="text-xs text-slate-400 mt-0.5 max-w-xl">
-                  Expand your call recording disk space instantly without changing your core telecaller subscription plan.
-                </p>
-              </div>
-              <Link
-                href="/dashboard/settings?tab=storage"
-                className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1.5 self-start sm:self-auto px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700/80 transition"
+            <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+              Your organization&apos;s subscription plan, pricing, telecaller user seats, and storage quotas are managed exclusively by the Platform Super Administrator. Self-serve plan switching is disabled to prevent unauthorized account modifications.
+            </p>
+            <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <span className="text-slate-400">Need to add more telecallers, expand storage, or activate full plan?</span>
+              <a
+                href="mailto:support@staffcaller.cloud?subject=StaffCaller Workspace Plan Upgrade"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition flex items-center justify-center gap-1.5 shrink-0"
               >
-                <span>Or Connect Google Drive (15 GB Free)</span>
+                <span>Contact Administrator</span>
                 <ExternalLink className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-              {[
-                { gb: 10, price: 299, label: '+10 GB Extra Space', desc: '~25,000 call minutes' },
-                { gb: 25, price: 599, label: '+25 GB Extra Space', desc: '~65,000 call minutes (Popular)' },
-                { gb: 50, price: 999, label: '+50 GB Extra Space', desc: '~130,000 call minutes' },
-              ].map((addon) => (
-                <div
-                  key={addon.gb}
-                  className="p-4 rounded-2xl bg-slate-800/70 border border-slate-700/60 flex items-center justify-between gap-3 hover:border-slate-600 transition"
-                >
-                  <div>
-                    <div className="font-bold text-white text-sm flex items-center gap-1.5">
-                      <HardDrive className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>{addon.label}</span>
-                    </div>
-                    <div className="text-xs text-cyan-300 font-semibold mt-0.5">₹{addon.price} one-time</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{addon.desc}</div>
-                  </div>
-                  <button
-                    onClick={() => handleBuyStorageAddon(addon.gb)}
-                    disabled={purchasingAddon === addon.gb}
-                    className="px-3.5 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs transition shrink-0 cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                  >
-                    {purchasingAddon === addon.gb ? (
-                      <>
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        <span>Adding...</span>
-                      </>
-                    ) : (
-                      <span>Add Space</span>
-                    )}
-                  </button>
-                </div>
-              ))}
+              </a>
             </div>
           </div>
 

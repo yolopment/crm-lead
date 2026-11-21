@@ -49,7 +49,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
   { label: 'Forms', href: '/dashboard/forms', icon: FileText },
   { label: 'Integrations', href: '/dashboard/integrations', icon: Plug },
-  { label: 'Billing', href: '/dashboard/billing', icon: CreditCard },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -319,11 +318,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Right Status Actions */}
           <div className="flex items-center gap-2.5">
-            {/* Trial Badge */}
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
-              <Clock className="w-3 h-3 text-slate-500" />
-              <span>CRM trial 14 days left</span>
-            </span>
+            {/* Trial Badge — Dynamic countdown */}
+            {isTrial && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[11px] font-semibold border border-amber-200">
+                <Clock className="w-3 h-3 text-amber-500" />
+                <span>Trial {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} left</span>
+              </span>
+            )}
 
             {/* Download StaffCaller Android App Button */}
             <a
@@ -479,11 +480,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="bg-rose-600 text-white px-4 py-2 text-xs font-semibold flex items-center justify-between shadow-md z-20">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>Your organization account is currently suspended. Platform features and sync are restricted.</span>
+              <span>Your organization account is currently suspended. Please contact your platform administrator.</span>
             </div>
-            <Link href="/dashboard/billing" className="underline font-bold hover:text-rose-100 shrink-0">
-              Resolve Subscription →
-            </Link>
           </div>
         )}
 
@@ -493,15 +491,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
               <span>
-                <strong>Evaluation Trial:</strong> You have {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} remaining in your evaluation trial.
+                <strong>Evaluation Trial:</strong> You have {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} remaining in your evaluation trial. Plans and quotas are managed by your administrator.
               </span>
             </div>
-            <Link
-              href="/dashboard/billing"
-              className="px-2.5 py-0.5 rounded-md bg-white/20 hover:bg-white/30 text-white font-semibold text-[11px] transition shrink-0"
-            >
-              Upgrade Plan →
-            </Link>
           </div>
         )}
 
@@ -511,15 +503,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-2">
               <HardDrive className="w-3.5 h-3.5 shrink-0" />
               <span>
-                <strong>Storage Alert:</strong> You have reached {storageUsagePercent}% of your recording quota ({(usedBytes / (1024 * 1024 * 1024)).toFixed(1)} GB / {(quotaBytes / (1024 * 1024 * 1024)).toFixed(0)} GB).
+                <strong>Storage Alert:</strong> You have reached {storageUsagePercent}% of your recording quota. Please contact your administrator to increase capacity.
               </span>
             </div>
-            <Link
-              href="/dashboard/billing"
-              className="px-2.5 py-0.5 rounded-md bg-slate-950 text-white font-semibold text-[11px] hover:bg-slate-900 transition shrink-0"
-            >
-              Add Storage +25GB →
-            </Link>
           </div>
         )}
 

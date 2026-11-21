@@ -206,9 +206,9 @@ model Organization {
   orgStatus               OrgStatus    @default(TRIAL)
   planTier                PlanTier     @default(FREE)
   trialEndsAt             DateTime?
-  maxUsers                Int          @default(5)
-  maxLeads                Int          @default(2000)
-  storageQuotaBytes       BigInt       @default(16106127360)  // 15 GB default
+  maxUsers                Int          @default(2)
+  maxLeads                Int          @default(1000000000)   // Unlimited leads
+  storageQuotaBytes       BigInt       @default(524288000)    // 500 MB default
   storageUsedBytes        BigInt       @default(0)
 
   // Custom Negotiated Pricing (set by Super Admin after trial)

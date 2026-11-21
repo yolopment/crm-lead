@@ -206,10 +206,11 @@ export class SuperAdminController {
         adminName,
         adminEmail,
         adminPassword = 'Admin@123',
-        // Custom pricing model — no fixed plan tiers during onboarding
-        maxUsers = 5,
-        maxLeads = 2000,
-        storageQuotaGB = 15,
+        // Default training evaluation trial: 7 days, 500 MB storage, 2 users, unlimited leads
+        maxUsers = 2,
+        maxLeads = 1000000000,
+        storageQuotaMB = 500,
+        storageQuotaGB,
         customPriceMonthly,   // in paise, optional
         customPriceYearly,    // in paise, optional
         billingNotes,
@@ -243,9 +244,14 @@ export class SuperAdminController {
         cleanSlug = `${cleanSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
       }
 
-      // Always start with 14-day trial — pricing is negotiated post-trial
-      const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-      const quotaBytes = BigInt(Math.max(1, Number(storageQuotaGB))) * BigInt(1024 * 1024 * 1024);
+      // Always start with 7-day training trial — pricing is negotiated post-trial
+      const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const quotaBytes =
+        storageQuotaMB !== undefined
+          ? BigInt(Math.max(50, Number(storageQuotaMB))) * BigInt(1024 * 1024)
+          : storageQuotaGB !== undefined
+            ? BigInt(Math.max(1, Number(storageQuotaGB))) * BigInt(1024 * 1024 * 1024)
+            : BigInt(524288000); // 500 MB default
 
       const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
@@ -259,8 +265,8 @@ export class SuperAdminController {
             orgStatus: OrgStatus.TRIAL,
             planTier: PlanTier.STARTER, // kept for compatibility, not user-facing
             trialEndsAt,
-            maxUsers: Number(maxUsers) || 5,
-            maxLeads: Number(maxLeads) || 2000,
+            maxUsers: Number(maxUsers) || 2,
+            maxLeads: Number(maxLeads) || 1000000000,
             storageQuotaBytes: quotaBytes,
             storageUsedBytes: BigInt(0),
             orgStorageDriver: 'local',
@@ -290,7 +296,7 @@ export class SuperAdminController {
       );
 
       res.status(201).json({
-        message: 'Client organization onboarded successfully on 14-day trial.',
+        message: 'Client organization onboarded successfully on 7-day trial.',
         organization: {
           id: result.org.id,
           name: result.org.name,
@@ -502,6 +508,7 @@ export class SuperAdminController {
         billingCycle,        // "monthly" | "yearly"
         maxUsers,
         maxLeads,
+        storageQuotaMB,
         storageQuotaGB,
         billingNotes,
         activateNow = true,  // if true, change orgStatus from TRIAL → ACTIVE
@@ -519,7 +526,9 @@ export class SuperAdminController {
       if (billingCycle) updateData.billingCycle = billingCycle;
       if (maxUsers !== undefined) updateData.maxUsers = Number(maxUsers);
       if (maxLeads !== undefined) updateData.maxLeads = Number(maxLeads);
-      if (storageQuotaGB !== undefined) {
+      if (storageQuotaMB !== undefined) {
+        updateData.storageQuotaBytes = BigInt(Math.max(50, Number(storageQuotaMB))) * BigInt(1024 * 1024);
+      } else if (storageQuotaGB !== undefined) {
         updateData.storageQuotaBytes = BigInt(Math.max(1, Number(storageQuotaGB))) * BigInt(1024 * 1024 * 1024);
       }
       if (billingNotes !== undefined) updateData.billingNotes = billingNotes;

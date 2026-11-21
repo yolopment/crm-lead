@@ -130,9 +130,9 @@ export default function SuperAdminOrganizationsPage() {
     adminName: '',
     adminEmail: '',
     adminPassword: 'Admin@123',
-    maxUsers: 5,
-    maxLeads: 2000,
-    storageQuotaGB: 15,
+    maxUsers: 2,
+    maxLeads: 1000000000,
+    storageQuotaMB: 500,
   });
 
   const handleAddOrgSubmit = async (e: React.FormEvent) => {
@@ -162,9 +162,9 @@ export default function SuperAdminOrganizationsPage() {
         adminName: '',
         adminEmail: '',
         adminPassword: 'Admin@123',
-        maxUsers: 5,
-        maxLeads: 2000,
-        storageQuotaGB: 15,
+        maxUsers: 2,
+        maxLeads: 1000000000,
+        storageQuotaMB: 500,
       });
       loadOrganizations();
     } catch (err: any) {
@@ -476,13 +476,15 @@ export default function SuperAdminOrganizationsPage() {
     }
   };
 
-  // Storage Formatter: Bytes -> GB (or MB)
+  // Storage Formatter: Bytes -> MB / GB
   const formatBytesToGB = (bytes: number | bigint = 0) => {
     const b = Number(bytes);
-    const gb = b / (1024 * 1024 * 1024);
-    if (gb < 0.05 && b > 0) {
-      return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+    if (b === 0) return '0 MB';
+    const mb = b / (1024 * 1024);
+    if (mb < 1000) {
+      return `${Math.round(mb)} MB`;
     }
+    const gb = b / (1024 * 1024 * 1024);
     return `${gb.toFixed(2)} GB`;
   };
 
@@ -755,9 +757,14 @@ export default function SuperAdminOrganizationsPage() {
                         <span className="text-slate-500"> / {org.maxUsers}</span>
                       </td>
 
-                      {/* Leads Count */}
-                      <td className="py-4 px-4 text-slate-200 font-medium">
-                        {org._count?.leads?.toLocaleString() ?? 0}
+                      {/* Leads Count / Unlimited */}
+                      <td className="py-4 px-4 text-slate-200">
+                        <span className="font-semibold text-white">
+                          {org._count?.leads?.toLocaleString() ?? 0}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">
+                          {org.maxLeads >= 10000000 ? 'Unlimited' : `/ ${org.maxLeads.toLocaleString()}`}
+                        </span>
                       </td>
 
                       {/* Storage used / quota with mini progress bar */}
@@ -1353,8 +1360,8 @@ export default function SuperAdminOrganizationsPage() {
                 <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3 text-xs text-amber-300">
                   <Clock className="w-4 h-4 text-amber-400 shrink-0" />
                   <div>
-                    <p className="font-semibold">14-day free trial — no payment required at onboarding</p>
-                    <p className="text-amber-400/70 mt-0.5">You will call the client, negotiate pricing, and activate their subscription after the trial.</p>
+                    <p className="font-semibold">7-Day Training Trial (2 Users · 500 MB Storage · Unlimited Leads)</p>
+                    <p className="text-amber-400/70 mt-0.5">Every new client automatically starts on a 7-day evaluation trial. Pricing is customized and activated post-trial.</p>
                   </div>
                 </div>
 
@@ -1375,39 +1382,34 @@ export default function SuperAdminOrganizationsPage() {
 
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1">
-                      Max Leads
+                      Lead Management
                     </label>
-                    <input
-                      type="number"
-                      min="100"
-                      max="10000000"
-                      step="100"
-                      value={newOrgForm.maxLeads}
-                      onChange={(e) => setNewOrgForm({ ...newOrgForm, maxLeads: Math.max(100, parseInt(e.target.value, 10) || 100) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
+                    <div className="w-full bg-slate-950 border border-emerald-500/30 rounded-xl px-3.5 py-2 text-sm text-emerald-400 font-semibold flex items-center justify-between">
+                      <span>Unlimited Leads</span>
+                      <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">No Cap</span>
+                    </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1">
-                      Storage Quota (GB)
+                      Storage Quota
                     </label>
                     <div className="relative">
                       <input
                         type="number"
-                        min="1"
-                        max="1000"
-                        value={newOrgForm.storageQuotaGB}
-                        onChange={(e) => setNewOrgForm({ ...newOrgForm, storageQuotaGB: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                        min="50"
+                        step="50"
+                        value={newOrgForm.storageQuotaMB}
+                        onChange={(e) => setNewOrgForm({ ...newOrgForm, storageQuotaMB: Math.max(50, parseInt(e.target.value, 10) || 50) })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                       />
-                      <span className="absolute right-3.5 top-2 text-xs text-slate-500">GB</span>
+                      <span className="absolute right-3.5 top-2 text-xs text-slate-500 font-mono">MB</span>
                     </div>
                   </div>
                 </div>
 
                 <p className="text-[11px] text-slate-500 pt-1">
-                  💡 Pricing is set <strong className="text-slate-400">after the trial</strong> via the <strong className="text-slate-400">Activate Subscription</strong> button — monthly, yearly, and storage pricing are negotiated per client.
+                  💡 After the 7-day trial, click <strong className="text-slate-400">Activate Subscription</strong> in the table to set custom negotiated monthly or yearly pricing.
                 </p>
               </div>
 

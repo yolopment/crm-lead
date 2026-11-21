@@ -24,139 +24,45 @@ export class BillingController {
   }
 
   /**
-   * List available subscription plans for upgrade
+   * List available subscription plans (disabled for self-serve client upgrades)
    */
   static async getPlans(_req: Request, res: Response): Promise<void> {
-    try {
-      const plans = await listActivePlans();
-      res.status(200).json({ plans });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message || 'Failed to fetch subscription plans.' });
-    }
+    res.status(200).json({ plans: [] });
   }
 
   /**
-   * Create Razorpay payment order for a selected plan
+   * Create Razorpay payment order for a selected plan (DISABLED)
    */
   static async createOrder(req: Request, res: Response): Promise<void> {
-    try {
-      const orgId = req.user!.orgId;
-      const { planId, billingCycle = 'monthly' } = req.body;
-
-      if (!planId) {
-        res.status(400).json({ error: 'planId is required.' });
-        return;
-      }
-
-      if (!['monthly', 'yearly'].includes(billingCycle)) {
-        res.status(400).json({ error: 'billingCycle must be either "monthly" or "yearly".' });
-        return;
-      }
-
-      const orderData = await createPaymentOrder({
-        orgId,
-        planId,
-        billingCycle,
-      });
-
-      res.status(200).json(orderData);
-    } catch (err: any) {
-      console.error('Error creating order:', err);
-      res.status(500).json({ error: err.message || 'Failed to initialize payment order.' });
-    }
+    res.status(403).json({
+      error: 'Self-serve plan upgrades are disabled. All subscription plans, pricing, and resource quotas are managed exclusively by the Platform Super Admin.',
+    });
   }
 
   /**
-   * Verify Razorpay payment and activate subscription
+   * Verify Razorpay payment and activate subscription (DISABLED)
    */
   static async verifyPayment(req: Request, res: Response): Promise<void> {
-    try {
-      const orgId = req.user!.orgId;
-      const {
-        planId,
-        billingCycle = 'monthly',
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature,
-      } = req.body;
-
-      if (!planId || !razorpayOrderId || !razorpayPaymentId) {
-        res.status(400).json({ error: 'planId, razorpayOrderId, and razorpayPaymentId are required.' });
-        return;
-      }
-
-      const result = await verifyAndActivateSubscription({
-        orgId,
-        planId,
-        billingCycle,
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature,
-      });
-
-      res.status(200).json({
-        message: 'Payment verified and subscription activated successfully!',
-        ...result,
-      });
-    } catch (err: any) {
-      console.error('Error verifying payment:', err);
-      res.status(400).json({ error: err.message || 'Payment verification failed.' });
-    }
+    res.status(403).json({
+      error: 'Self-serve plan upgrades are disabled. All subscription plans, pricing, and resource quotas are managed exclusively by the Platform Super Admin.',
+    });
   }
 
   /**
-   * Create Razorpay order to purchase additional storage quota
+   * Create Razorpay order to purchase additional storage quota (DISABLED)
    */
   static async createStorageAddonOrder(req: Request, res: Response): Promise<void> {
-    try {
-      const orgId = req.user!.orgId;
-      const { extraGB } = req.body;
-
-      if (!extraGB || ![10, 25, 50, 100].includes(Number(extraGB))) {
-        res.status(400).json({ error: 'extraGB must be one of: 10, 25, 50, 100.' });
-        return;
-      }
-
-      const orderData = await createStorageAddonOrder({
-        orgId,
-        extraGB: Number(extraGB),
-      });
-
-      res.status(200).json(orderData);
-    } catch (err: any) {
-      console.error('Error in createStorageAddonOrder:', err);
-      res.status(500).json({ error: err.message || 'Failed to initialize storage addon order.' });
-    }
+    res.status(403).json({
+      error: 'Self-serve storage add-on purchases are disabled. Quotas are managed exclusively by the Platform Super Admin.',
+    });
   }
 
   /**
-   * Verify Razorpay payment and activate storage quota addon
+   * Verify Razorpay payment and activate storage quota addon (DISABLED)
    */
   static async verifyStorageAddon(req: Request, res: Response): Promise<void> {
-    try {
-      const orgId = req.user!.orgId;
-      const { extraGB, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
-
-      if (!extraGB || !razorpayOrderId || !razorpayPaymentId) {
-        res.status(400).json({ error: 'extraGB, razorpayOrderId, and razorpayPaymentId are required.' });
-        return;
-      }
-
-      const result = await verifyAndActivateStorageAddon({
-        orgId,
-        extraGB: Number(extraGB),
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature,
-      });
-
-      res.status(200).json({
-        message: `Successfully added +${extraGB} GB storage quota!`,
-        ...result,
-      });
-    } catch (err: any) {
-      console.error('Error in verifyStorageAddon:', err);
-      res.status(400).json({ error: err.message || 'Storage addon verification failed.' });
-    }
+    res.status(403).json({
+      error: 'Self-serve storage add-on purchases are disabled. Quotas are managed exclusively by the Platform Super Admin.',
+    });
   }
 }
