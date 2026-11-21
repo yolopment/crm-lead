@@ -815,6 +815,7 @@ fun ConvertToLeadBottomSheet(
     val client = remember { OkHttpClient() }
 
     var leadName by remember { mutableStateOf(initialName) }
+    var leadEmail by remember { mutableStateOf("") }
     var leadStage by remember { mutableStateOf("NEW") }
     var notesText by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
@@ -868,6 +869,20 @@ fun ConvertToLeadBottomSheet(
                 onValueChange = {},
                 readOnly = true,
                 enabled = false,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Email (optional)
+            Text("Email (optional)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = leadEmail,
+                onValueChange = { leadEmail = it },
+                placeholder = { Text("e.g. client@example.com") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp)
             )
@@ -929,6 +944,7 @@ fun ConvertToLeadBottomSheet(
                                 val json = JSONObject().apply {
                                     put("phoneNumber", phoneNumber)
                                     put("fullName", leadName.trim())
+                                    if (leadEmail.isNotBlank()) put("email", leadEmail.trim())
                                     put("stage", leadStage)
                                     put("notes", notesText.trim())
                                 }
@@ -936,6 +952,7 @@ fun ConvertToLeadBottomSheet(
                                 val request = Request.Builder()
                                     .url(url)
                                     .addHeader("Authorization", "Bearer $token")
+                                    .addHeader("x-device-token", token)
                                     .post(body)
                                     .build()
 

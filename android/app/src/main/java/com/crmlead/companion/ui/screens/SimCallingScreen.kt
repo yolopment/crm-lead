@@ -48,7 +48,7 @@ fun SimCallingScreen(
             onDismissRequest = { showChangeDialog = false },
             title = {
                 Text(
-                    text = "Which SIM should LeadZam track?",
+                    text = "Which SIM should StaffCaller track?",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = TextDark

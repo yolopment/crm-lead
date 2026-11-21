@@ -34,7 +34,7 @@ enum class AppNavScreen {
 }
 
 @Composable
-fun LeadZamDrawerContent(
+fun StaffCallerDrawerContent(
     currentScreen: AppNavScreen,
     userName: String,
     orgName: String,
@@ -192,13 +192,6 @@ fun LeadZamDrawerContent(
                 label = "Follow-ups",
                 isSelected = currentScreen == AppNavScreen.FOLLOW_UPS,
                 onClick = { onNavigate(AppNavScreen.FOLLOW_UPS) }
-            )
-
-            DrawerNavItem(
-                icon = Icons.Default.Chat,
-                label = "WhatsApp",
-                isSelected = currentScreen == AppNavScreen.WHATSAPP,
-                onClick = { onNavigate(AppNavScreen.WHATSAPP) }
             )
 
             DrawerNavItem(

@@ -25,5 +25,8 @@ interface CallDao {
 
     @Query("SELECT * FROM calls WHERE phoneNumber = :phone AND startedAt >= :sinceTime ORDER BY startedAt DESC LIMIT 1")
     suspend fun findRecentCall(phone: String, sinceTime: Long): CallEntity?
+
+    @Query("UPDATE calls SET contactName = :name WHERE phoneNumber = :phone")
+    suspend fun updateContactNameByPhone(phone: String, name: String)
 }
 

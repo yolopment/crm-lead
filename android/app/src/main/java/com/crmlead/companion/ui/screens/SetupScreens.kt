@@ -31,7 +31,7 @@ import com.crmlead.companion.R
 import com.crmlead.companion.data.CallEntity
 import com.crmlead.companion.sim.SimInfo
 
-// --- Colors matching LeadZam Design System ---
+// --- Colors matching StaffCaller Design System ---
 val BrandBlue = Color(0xFF2563EB)
 val BrandBlueDark = Color(0xFF1D4ED8)
 val BrandRed = Color(0xFFDC2626)
@@ -200,10 +200,11 @@ fun SignInScreen(
     initialToken: String = "",
     isLoading: Boolean,
     onSignIn: (email: String, pass: String, serverUrl: String) -> Unit,
-    onPairWithToken: (serverUrl: String, token: String) -> Unit
+    onPairWithToken: (serverUrl: String, token: String) -> Unit,
+    onGoogleSignIn: () -> Unit = {}
 ) {
-    var email by remember { mutableStateOf(initialEmail.ifEmpty { "yolopment@gmail.com" }) }
-    var password by remember { mutableStateOf("admin123") }
+    var email by remember { mutableStateOf(initialEmail) }
+    var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var serverUrl by remember { mutableStateOf(initialServerUrl) }
     var deviceToken by remember { mutableStateOf(initialToken) }
@@ -271,6 +272,7 @@ fun SignInScreen(
                         value = email,
                         onValueChange = { email = it },
                         label = { Text("Email") },
+                        placeholder = { Text("you@company.com") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
@@ -282,6 +284,7 @@ fun SignInScreen(
                         value = password,
                         onValueChange = { password = it },
                         label = { Text("Password") },
+                        placeholder = { Text("Enter your password") },
                         singleLine = true,
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
@@ -301,40 +304,6 @@ fun SignInScreen(
                         onValueChange = { deviceToken = it },
                         label = { Text("Device Pairing Token") },
                         placeholder = { Text("e.g. c89fae019b88231c") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-
-                // Collapsible Server URL option
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showServerConfig = !showServerConfig }
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Server: ${serverUrl.replace("http://", "").replace("https://", "")}",
-                        fontSize = 12.sp,
-                        color = TextSubtle
-                    )
-                    Text(
-                        text = if (showServerConfig) "▲" else "▼",
-                        fontSize = 10.sp,
-                        color = TextSubtle
-                    )
-                }
-
-                if (showServerConfig) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = serverUrl,
-                        onValueChange = { serverUrl = it },
-                        label = { Text("Server URL") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
@@ -396,22 +365,88 @@ fun SignInScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Sign in with Google Button
+                OutlinedButton(
+                    onClick = onGoogleSignIn,
+                    enabled = !isLoading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFCBD5E1))
+                    )
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "G",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            color = Color(0xFF4285F4)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Sign in with Google",
+                            color = TextDark,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Pairing Token Toggle
                 OutlinedButton(
                     onClick = {
                         useTokenPairing = !useTokenPairing
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(44.dp),
                     shape = RoundedCornerShape(10.dp),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.linearGradient(listOf(BorderLight, BorderLight)))
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFF1F5F9))
+                    )
                 ) {
                     Text(
-                        text = if (useTokenPairing) "Sign in with Credentials" else "Sign in with Pairing Token",
-                        color = TextDark,
+                        text = if (useTokenPairing) "Sign in with Email & Password" else "Sign in with Pairing Token",
+                        color = TextSubtle,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp
+                        fontSize = 13.sp
                     )
+                }
+
+                // Collapsible Advanced Server URL option at bottom
+                if (showServerConfig) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = serverUrl,
+                        onValueChange = { serverUrl = it },
+                        label = { Text("Server URL") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showServerConfig = true }
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Server: staffcaller.cloud",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
                 }
             }
         }
@@ -434,7 +469,7 @@ fun SetupOverviewScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "Set up LeadZam on this\nphone",
+            text = "Set up StaffCaller on this\nphone",
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
             color = TextDark,
@@ -638,7 +673,7 @@ fun StepCallTrackingScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "LeadZam needs your call history to save your work calls automatically.",
+            text = "StaffCaller needs your call history to save your work calls automatically.",
             fontSize = 14.sp,
             color = TextMuted,
             textAlign = TextAlign.Center,
@@ -958,7 +993,7 @@ fun StepWorkSimScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "LeadZam is tracking calls on all SIMs.\nTo list the SIMs in this phone so you can choose one, LeadZam needs Phone access.",
+                text = "StaffCaller is tracking calls on all SIMs.\nTo list the SIMs in this phone so you can choose one, StaffCaller needs Phone access.",
                 fontSize = 14.sp,
                 color = TextMuted,
                 textAlign = TextAlign.Center,
@@ -992,7 +1027,7 @@ fun StepWorkSimScreen(
         } else {
             // Screen 9: SIM Selection List
             Text(
-                text = "Which SIM should LeadZam\ntrack?",
+                text = "Which SIM should StaffCaller\ntrack?",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark,

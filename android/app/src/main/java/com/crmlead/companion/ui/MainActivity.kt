@@ -10,6 +10,9 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.PowerManager
 import android.provider.Settings
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,6 +20,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -24,6 +29,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.crmlead.companion.data.AppDatabase
@@ -35,7 +43,7 @@ import com.crmlead.companion.sync.RecordingSyncManager
 import com.crmlead.companion.sync.SyncWorker
 import com.crmlead.companion.telemetry.DeviceTelemetryHelper
 import com.crmlead.companion.ui.navigation.AppNavScreen
-import com.crmlead.companion.ui.navigation.LeadZamDrawerContent
+import com.crmlead.companion.ui.navigation.StaffCallerDrawerContent
 import com.crmlead.companion.ui.screens.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -134,14 +142,32 @@ class MainActivity : ComponentActivity() {
     private var selectedSimSlot by mutableStateOf(-1)
     private var serverUrlState by mutableStateOf(DEFAULT_SERVER_URL)
     private var showServerChangeDialog by mutableStateOf(false)
+    private var showGoogleAuthDialog by mutableStateOf(false)
     private var tempServerUrl by mutableStateOf(DEFAULT_SERVER_URL)
     private var userRoleState by mutableStateOf("AGENT")
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        handleAuthIntent(intent)
+    }
+
+    private fun handleAuthIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        val token = data.getQueryParameter("google_token") ?: data.getQueryParameter("token")
+        if (!token.isNullOrBlank()) {
+            showGoogleAuthDialog = false
+            loginWithGoogleToken(token, serverUrlState)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
         userRoleState = prefs.getString(KEY_PAIRED_ROLE, "AGENT") ?: "AGENT"
+
+        // Check for any Google OAuth redirect token
+        handleAuthIntent(intent)
 
         // Automatic Server Migration to staffcaller.cloud
         var currentSavedUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
@@ -242,6 +268,67 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // Google OAuth In-App Web Dialog
+                    if (showGoogleAuthDialog) {
+                        Dialog(
+                            onDismissRequest = { showGoogleAuthDialog = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                        ) {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = Color.White
+                            ) {
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    ) {
+                                        Text("Sign in with Google", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                                        IconButton(onClick = { showGoogleAuthDialog = false }) {
+                                            Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark)
+                                        }
+                                    }
+                                    HorizontalDivider(color = BorderLight)
+                                    AndroidView(
+                                        modifier = Modifier.fillMaxSize(),
+                                        factory = { ctx ->
+                                            WebView(ctx).apply {
+                                                settings.javaScriptEnabled = true
+                                                settings.domStorageEnabled = true
+                                                settings.setSupportZoom(false)
+                                                webViewClient = object : WebViewClient() {
+                                                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                                        val uri = request?.url ?: return false
+                                                        val urlStr = uri.toString()
+                                                        val token = uri.getQueryParameter("google_token") ?: uri.getQueryParameter("token")
+                                                        if (!token.isNullOrBlank()) {
+                                                            showGoogleAuthDialog = false
+                                                            loginWithGoogleToken(token, serverUrlState)
+                                                            return true
+                                                        }
+                                                        if (urlStr.startsWith("staffcaller://")) {
+                                                            val customToken = uri.getQueryParameter("token") ?: uri.getQueryParameter("google_token")
+                                                            if (!customToken.isNullOrBlank()) {
+                                                                showGoogleAuthDialog = false
+                                                                loginWithGoogleToken(customToken, serverUrlState)
+                                                                return true
+                                                            }
+                                                        }
+                                                        return false
+                                                    }
+                                                }
+                                                loadUrl("${serverUrlState.trimEnd('/')}/api/v1/auth/google")
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Background listener for Web-to-Phone remote calling ("Allow Calling" feature)
                     LaunchedEffect(currentStep, serverUrlState) {
                         if (currentStep == SetupStep.MAIN_APP) {
@@ -308,14 +395,14 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (currentStep == SetupStep.MAIN_APP) {
-                        // FULL MAIN LEADZAM APP WITH NAVIGATION DRAWER
+                        // FULL MAIN STAFFCALLER APP WITH NAVIGATION DRAWER
                         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                         val scope = rememberCoroutineScope()
 
                         ModalNavigationDrawer(
                             drawerState = drawerState,
                             drawerContent = {
-                                LeadZamDrawerContent(
+                                StaffCallerDrawerContent(
                                     currentScreen = currentNavScreen,
                                     userName = userName,
                                     orgName = orgName,
@@ -355,6 +442,11 @@ class MainActivity : ComponentActivity() {
                                         onDismissImportPrompt = {
                                             showImportPrompt = false
                                             prefs.edit().putBoolean("dismissed_import_prompt", true).apply()
+                                        },
+                                        onLeadCreated = { phone, name ->
+                                            lifecycleScope.launch(Dispatchers.IO) {
+                                                db.callDao().updateContactNameByPhone(phone, name)
+                                            }
                                         }
                                     )
                                 }
@@ -453,6 +545,9 @@ class MainActivity : ComponentActivity() {
                                         onPairWithToken = { url, token ->
                                             serverUrlState = url
                                             pairWithToken(url, token)
+                                        },
+                                        onGoogleSignIn = {
+                                            showGoogleAuthDialog = true
                                         }
                                     )
                                 }
@@ -727,6 +822,74 @@ class MainActivity : ComponentActivity() {
                 withContext(Dispatchers.Main) {
                     isSigningIn = false
                     Toast.makeText(this@MainActivity, "❌ Error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun loginWithGoogleToken(token: String, serverUrl: String) {
+        isSigningIn = true
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val cleanUrl = serverUrl.trimEnd('/')
+                val request = Request.Builder()
+                    .url("$cleanUrl/api/v1/auth/me")
+                    .header("Authorization", "Bearer $token")
+                    .get()
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+
+                if (!response.isSuccessful) {
+                    withContext(Dispatchers.Main) {
+                        isSigningIn = false
+                        Toast.makeText(this@MainActivity, "❌ Google Sign-In failed to fetch profile", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+
+                val userObj = JSONObject(responseBody)
+                val orgObj = userObj.optJSONObject("organization") ?: JSONObject()
+                var deviceToken = userObj.optString("deviceToken", "")
+                if (deviceToken.isBlank()) {
+                    deviceToken = token.take(16)
+                }
+                val userName = userObj.optString("name", "User")
+                val userRole = userObj.optString("role", "AGENT")
+                val orgName = orgObj.optString("name", "Organization")
+
+                val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putString(SyncWorker.KEY_SERVER_URL, cleanUrl)
+                    .putString(SyncWorker.KEY_DEVICE_TOKEN, deviceToken)
+                    .putString("crm_auth_token", token)
+                    .putString(KEY_PAIRED_USER, userName)
+                    .putString(KEY_PAIRED_ROLE, userRole)
+                    .putString(KEY_PAIRED_ORG, orgName)
+                    .putBoolean(KEY_IS_PAIRED, true)
+                    .apply()
+
+                userRoleState = userRole
+
+                pairDeviceHardware(cleanUrl, deviceToken)
+
+                withContext(Dispatchers.Main) {
+                    isSigningIn = false
+                    CallRecordingService.start(this@MainActivity)
+                    Toast.makeText(this@MainActivity, "✅ Welcome back, $userName!", Toast.LENGTH_SHORT).show()
+                    val alreadyGranted = areEssentialPermissionsGranted()
+                    if (alreadyGranted) {
+                        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, true).apply()
+                        currentStep = SetupStep.MAIN_APP
+                    } else {
+                        currentStep = SetupStep.SETUP_OVERVIEW
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isSigningIn = false
+                    Toast.makeText(this@MainActivity, "❌ Google Sign-In Error: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }

@@ -160,10 +160,10 @@ fun PermissionsScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFFF1F5F9))
 
-                    // Row 4: Keep LeadZam running
+                    // Row 4: Keep StaffCaller running
                     PermissionRow(
                         icon = "⚡",
-                        title = "Keep LeadZam running",
+                        title = "Keep StaffCaller running",
                         subtitle = "Calls sync right away",
                         statusText = if (hasBattery) "✓ On" else "Setup ›",
                         isGood = hasBattery,
