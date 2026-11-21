@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -57,7 +58,12 @@ fun CallsScreen(
     onCheckNewRecordings: () -> Unit,
     onRetrySync: () -> Unit,
     onChangeWifiIp: () -> Unit,
-    onOpenLead: (String) -> Unit = {}
+    onOpenLead: (String) -> Unit = {},
+    isBackgroundImporting: Boolean = false,
+    backgroundImportStatus: String = "",
+    showImportPrompt: Boolean = false,
+    onImportRecentCalls: (days: Int) -> Unit = {},
+    onDismissImportPrompt: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var selectedCallForDetail by remember { mutableStateOf<CallEntity?>(null) }
@@ -192,6 +198,21 @@ fun CallsScreen(
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
+                                text = { Text("Import calls (last 7 days)") },
+                                onClick = {
+                                    showMenu = false
+                                    onImportRecentCalls(7)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Import calls (last 30 days)") },
+                                onClick = {
+                                    showMenu = false
+                                    onImportRecentCalls(30)
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
                                 text = { Text("Change Wi-Fi / Server IP") },
                                 onClick = {
                                     showMenu = false
@@ -269,6 +290,145 @@ fun CallsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             if (selectedTab == 0) {
+                // Background Import Progress Status (Non-blocking)
+                if (isBackgroundImporting) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFBFDBFE)))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.5.dp,
+                                color = BrandBlue
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Syncing in background...",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = TextDark
+                                )
+                                Text(
+                                    text = backgroundImportStatus.ifEmpty { "Matching recordings & syncing call logs to CRM..." },
+                                    fontSize = 12.sp,
+                                    color = TextSubtle,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                } else if (showImportPrompt) {
+                    // First-time Onboarding Call Import Prompt (Dismissible, Non-blocking)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFBBF7D0)))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFFDCFCE7)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.History,
+                                            contentDescription = null,
+                                            tint = Color(0xFF16A34A),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "Import recent calls & recordings?",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = TextDark
+                                    )
+                                }
+                                IconButton(
+                                    onClick = onDismissImportPrompt,
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Dismiss",
+                                        tint = TextSubtle,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = "Add past call history and recordings to StaffCaller CRM. Runs in the background so you can keep working uninterrupted.",
+                                fontSize = 12.sp,
+                                color = TextMuted,
+                                lineHeight = 18.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { onImportRecentCalls(7) },
+                                    modifier = Modifier
+                                        .weight(1.1f)
+                                        .height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text("Import last 7 days", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { onImportRecentCalls(30) },
+                                    modifier = Modifier
+                                        .weight(0.9f)
+                                        .height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text("Last 30 days", fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                                }
+
+                                TextButton(
+                                    onClick = onDismissImportPrompt,
+                                    modifier = Modifier.height(38.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text("Not now", fontSize = 12.sp, color = TextSubtle)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Trial Status Banner
                 Card(
                     modifier = Modifier.fillMaxWidth(),

@@ -35,7 +35,8 @@ object CallLogImporter {
     suspend fun importRecentCalls(
         context: Context,
         days: Int,
-        workSimSlot: Int = -1 // -1 means all SIMs
+        workSimSlot: Int = -1, // -1 means all SIMs
+        onProgress: ((status: String) -> Unit)? = null
     ): Result<Int> = withContext(Dispatchers.IO) {
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
@@ -50,6 +51,14 @@ object CallLogImporter {
         val serverUrl = prefs.getString(SyncWorker.KEY_SERVER_URL, "https://staffcaller.cloud") ?: "https://staffcaller.cloud"
         val deviceToken = prefs.getString(SyncWorker.KEY_DEVICE_TOKEN, "") ?: ""
 
+        onProgress?.invoke("Scanning audio recordings on device...")
+        val discoveredAudio = try {
+            com.crmlead.companion.detector.CallAudioDetector.scanAllAudioRecordings(context)
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+        onProgress?.invoke("Reading call history (last $days days)...")
         val cutoffTime = System.currentTimeMillis() - (days.toLong() * 24 * 60 * 60 * 1000)
         val projection = arrayOf(
             CallLog.Calls.NUMBER,
@@ -112,17 +121,28 @@ object CallLogImporter {
                     else -> "MISSED"
                 }
 
-                // Check for matching audio recording on device
-                val matchedRecording = try {
-                    com.crmlead.companion.detector.CallAudioDetector.findRecordingForCall(
-                        context,
-                        phone,
-                        callDate,
-                        callDate + duration * 1000L,
-                        duration
-                    )
-                } catch (e: Exception) {
-                    null
+                // Check for matching audio recording on device (Fast cache first, then targeted fallback)
+                val cleanPhone = phone.replace(Regex("[^0-9]"), "")
+                var matchedRecording: java.io.File? = null
+                if (discoveredAudio.isNotEmpty()) {
+                    matchedRecording = discoveredAudio.firstOrNull { f ->
+                        val name = f.name.lowercase()
+                        (cleanPhone.length >= 7 && name.contains(cleanPhone.takeLast(7))) ||
+                        (f.lastModified() in (callDate - 120_000)..(callDate + duration * 1000L + 180_000))
+                    }
+                }
+                if (matchedRecording == null) {
+                    matchedRecording = try {
+                        com.crmlead.companion.detector.CallAudioDetector.findRecordingForCall(
+                            context,
+                            phone,
+                            callDate,
+                            callDate + duration * 1000L,
+                            duration
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
 
                 val hasAudio = matchedRecording != null && matchedRecording.exists()
@@ -166,6 +186,7 @@ object CallLogImporter {
             return@withContext Result.success(0)
         }
 
+        onProgress?.invoke("Saving ${callsToSync.size} calls to local timeline...")
         // Store into local SQLite Room database
         val db = AppDatabase.getDatabase(context)
         for (call in callsToSync) {
@@ -179,6 +200,7 @@ object CallLogImporter {
         // Send to CRM backend
         if (serverUrl.isNotEmpty() && deviceToken.isNotEmpty()) {
             try {
+                onProgress?.invoke("Syncing ${callsToSync.size} calls with StaffCaller Cloud...")
                 val payload = JSONObject().apply {
                     put("calls", jsonCallsArray)
                 }
@@ -196,7 +218,8 @@ object CallLogImporter {
                 } else {
                     // Trigger recording upload for any matched audio files
                     try {
-                        com.crmlead.companion.sync.RecordingSyncManager.scanAndSyncAllRecordings(context)
+                        onProgress?.invoke("Uploading recordings to StaffCaller Cloud...")
+                        com.crmlead.companion.sync.RecordingSyncManager.scanAndSyncAllRecordings(context, onProgress)
                     } catch (e: Exception) {
                         Log.w(TAG, "Background recording sync error", e)
                     }
@@ -206,6 +229,7 @@ object CallLogImporter {
             }
         }
 
+        onProgress?.invoke("Import completed (${callsToSync.size} calls)")
         Result.success(callsToSync.size)
     }
 }

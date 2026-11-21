@@ -124,6 +124,9 @@ class MainActivity : ComponentActivity() {
     private var isSigningIn by mutableStateOf(false)
     private var isImporting by mutableStateOf(false)
     private var importStatusText by mutableStateOf("")
+    private var isBackgroundImporting by mutableStateOf(false)
+    private var backgroundImportStatusText by mutableStateOf("")
+    private var showImportPrompt by mutableStateOf(false)
     private var isSyncingRecordings by mutableStateOf(false)
     private var isStorageAccessGranted by mutableStateOf(false)
     private var detectedSims by mutableStateOf<List<SimInfo>>(emptyList())
@@ -150,6 +153,10 @@ class MainActivity : ComponentActivity() {
         val isPaired = prefs.getBoolean(KEY_IS_PAIRED, false)
         selectedSimSlot = prefs.getInt(KEY_WORK_SIM_SLOT, -1)
         val permissionsGranted = areEssentialPermissionsGranted()
+
+        val hasImported = prefs.getBoolean("has_imported_calls", false)
+        val dismissedPrompt = prefs.getBoolean("dismissed_import_prompt", false)
+        showImportPrompt = !hasImported && !dismissedPrompt
 
         currentStep = if (isPaired && (isOnboardingCompleted || permissionsGranted)) {
             if (!isOnboardingCompleted) {
@@ -335,6 +342,14 @@ class MainActivity : ComponentActivity() {
                                         onOpenLead = { leadPhone ->
                                             targetLeadQuery = leadPhone
                                             currentNavScreen = AppNavScreen.LEADS
+                                        },
+                                        isBackgroundImporting = isBackgroundImporting,
+                                        backgroundImportStatus = backgroundImportStatusText,
+                                        showImportPrompt = showImportPrompt,
+                                        onImportRecentCalls = { days -> startBackgroundCallImport(days) },
+                                        onDismissImportPrompt = {
+                                            showImportPrompt = false
+                                            prefs.edit().putBoolean("dismissed_import_prompt", true).apply()
                                         }
                                     )
                                 }
@@ -404,7 +419,8 @@ class MainActivity : ComponentActivity() {
                                         serverUrl = serverUrlState,
                                         onOpenDrawer = { scope.launch { drawerState.open() } },
                                         onChangeServerUrl = { showServerChangeDialog = true },
-                                        onSignOut = { signOut() }
+                                        onSignOut = { signOut() },
+                                        onImportRecentCalls = { days -> startBackgroundCallImport(days) }
                                     )
                                 }
                             }
@@ -490,16 +506,22 @@ class MainActivity : ComponentActivity() {
                                 }
                                 SetupStep.SETUP_COMPLETE -> {
                                     SetupCompleteScreen(
-                                        onContinue = { currentStep = SetupStep.IMPORT_CALLS },
+                                        onContinue = { finishOnboarding() },
                                         onKeepRunningClick = { requestBatteryWhitelist() }
                                     )
                                 }
                                 SetupStep.IMPORT_CALLS -> {
                                     ImportRecentCallsScreen(
-                                        isImporting = isImporting,
-                                        importStatusText = importStatusText,
-                                        onImportLast30Days = { importCallHistory(30) },
-                                        onImportLast7Days = { importCallHistory(7) },
+                                        isImporting = false,
+                                        importStatusText = "",
+                                        onImportLast30Days = {
+                                            finishOnboarding()
+                                            startBackgroundCallImport(30)
+                                        },
+                                        onImportLast7Days = {
+                                            finishOnboarding()
+                                            startBackgroundCallImport(7)
+                                        },
                                         onNotNow = { finishOnboarding() }
                                     )
                                 }
@@ -780,20 +802,41 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun importCallHistory(days: Int) {
-        isImporting = true
-        importStatusText = "Importing calls & matching recordings (last $days days)..."
+    private fun startBackgroundCallImport(days: Int) {
+        val prefs = getSharedPreferences(SyncWorker.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("has_imported_calls", true)
+            .putBoolean("dismissed_import_prompt", true)
+            .apply()
+        showImportPrompt = false
+        isBackgroundImporting = true
+        backgroundImportStatusText = "Reading call history (last $days days)..."
 
-        lifecycleScope.launch {
-            val result = CallLogImporter.importRecentCalls(this@MainActivity, days, selectedSimSlot)
-            isImporting = false
+        Toast.makeText(this, "⏳ Importing call history in background... You can keep using StaffCaller.", Toast.LENGTH_SHORT).show()
 
-            result.onSuccess { count ->
-                Toast.makeText(this@MainActivity, "✅ Imported $count calls to CRM!", Toast.LENGTH_LONG).show()
-                finishOnboarding()
-            }.onFailure { err ->
-                Toast.makeText(this@MainActivity, "Notice: ${err.message}", Toast.LENGTH_SHORT).show()
-                finishOnboarding()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val result = CallLogImporter.importRecentCalls(
+                    context = this@MainActivity,
+                    days = days,
+                    workSimSlot = selectedSimSlot,
+                    onProgress = { status ->
+                        backgroundImportStatusText = status
+                    }
+                )
+                withContext(Dispatchers.Main) {
+                    isBackgroundImporting = false
+                    result.onSuccess { count ->
+                        Toast.makeText(this@MainActivity, "✅ Imported $count calls to CRM!", Toast.LENGTH_LONG).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@MainActivity, "Notice: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isBackgroundImporting = false
+                    Toast.makeText(this@MainActivity, "Import notice: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -805,8 +848,12 @@ class MainActivity : ComponentActivity() {
         currentNavScreen = AppNavScreen.CALLS
         currentStep = SetupStep.MAIN_APP
 
+        val hasImported = prefs.getBoolean("has_imported_calls", false)
+        val dismissedPrompt = prefs.getBoolean("dismissed_import_prompt", false)
+        showImportPrompt = !hasImported && !dismissedPrompt
+
         // Trigger recording scanner in background
-        lifecycleScope.launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             RecordingSyncManager.scanAndSyncAllRecordings(this@MainActivity)
         }
     }

@@ -27,7 +27,8 @@ fun SettingsScreen(
     serverUrl: String,
     onOpenDrawer: () -> Unit,
     onChangeServerUrl: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onImportRecentCalls: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     var appearanceMode by remember { mutableStateOf("System") }
@@ -135,6 +136,55 @@ fun SettingsScreen(
                         Text("Invite teammates and see their status", fontSize = 12.sp, color = TextSubtle)
                     }
                     Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSubtle, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Call history import
+            Text("Call history import", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSubtle)
+            Spacer(modifier = Modifier.height(6.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFF6FF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.History, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Import Recent Calls", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                            Text("Sync past calls and recordings to CRM in background", fontSize = 12.sp, color = TextSubtle)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { onImportRecentCalls(7) },
+                            modifier = Modifier.weight(1f).height(38.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                        ) {
+                            Text("Last 7 days", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { onImportRecentCalls(30) },
+                            modifier = Modifier.weight(1f).height(38.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Last 30 days", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BrandBlue)
+                        }
+                    }
                 }
             }
 
