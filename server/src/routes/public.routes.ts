@@ -12,61 +12,8 @@ function getPublicPath(relPath: string): string | null {
   return null;
 }
 
-const LLMS_TEXT = `# StaffCaller Cloud
-> Production SaaS CRM for Automatic Call Tracking, Audio Recording Sync & Lead Distribution
-
-## Documentation & Key Links
-- [Platform Home](https://staffcaller.cloud/): Overview, live features, and architecture
-- [About StaffCaller](https://staffcaller.cloud/about): Organization mission, technical design, and companion app telemetry
-- [Technical Contact & Support](https://staffcaller.cloud/contact): Inquiries, enterprise support, and SLA
-- [System Health](https://staffcaller.cloud/health): Live API, uptime, and system status
-- [Terms of Service](https://staffcaller.cloud/terms): Platform license and acceptable usage policy
-- [Privacy Policy](https://staffcaller.cloud/privacy): Data security, encryption, and audio isolation policy
-- [MCP Server Card](https://staffcaller.cloud/.well-known/mcp/server-card.json): Machine-readable Model Context Protocol server capabilities
-
-## Core Capabilities
-- **Automatic Call Syncing**: Native Android companion listener capturing incoming and outgoing calls on IDLE state.
-- **Audio Extraction**: Direct OEM audio extractor supporting Samsung, Xiaomi (MIUI), Vivo, Oppo, OnePlus, and Google Pixel.
-- **HTTP Range Audio Streaming**: Sub-second seeking and instant browser audio streaming with token authorization.
-- **Round-Robin Lead Distribution**: Dynamic lead ingestion from Meta Ads & Google Ads with agent leave management exclusion.
-- **Cloud Storage Options**: Dual-driver architecture supporting Cloudflare R2 and Google Drive.
-- **WhatsApp Web Integration**: Multi-session Baileys client for automated client outreach and messaging.
-
-## Key APIs
-- POST /api/v1/auth/login: User authentication with JWT
-- POST /api/v1/auth/register: Organization & admin registration
-- GET /api/v1/leads: Paginated lead management
-- GET /api/v1/calls: Call metadata & audio stream endpoints
-- POST /api/v1/webhooks/meta: Meta Ads lead ingestion
-`;
-
 const ROBOTS_TXT = `User-agent: *
 Allow: /
-
-# Dedicated AI Crawlers & LLM Scanners
-User-agent: GPTBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-User-agent: Amazonbot
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
-
-User-agent: CCBot
-Allow: /
-
-# Content usage signal (RFC compliant)
-Content-Signal: search=yes, ai-train=yes
 
 Sitemap: https://staffcaller.cloud/sitemap.xml
 `;
@@ -75,64 +22,35 @@ const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://staffcaller.cloud/</loc>
-    <lastmod>2026-11-20</lastmod>
+    <lastmod>2026-11-21</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://staffcaller.cloud/about</loc>
-    <lastmod>2026-11-20</lastmod>
+    <lastmod>2026-11-21</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://staffcaller.cloud/contact</loc>
-    <lastmod>2026-11-20</lastmod>
+    <lastmod>2026-11-21</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://staffcaller.cloud/terms</loc>
-    <lastmod>2026-11-20</lastmod>
+    <lastmod>2026-11-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://staffcaller.cloud/privacy</loc>
-    <lastmod>2026-11-20</lastmod>
+    <lastmod>2026-11-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
-  <url>
-    <loc>https://staffcaller.cloud/llms.txt</loc>
-    <lastmod>2026-11-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
 </urlset>`;
-
-const MCP_SERVER_CARD = {
-  $schema: "https://modelcontextprotocol.io/schemas/server-card-v1.json",
-  name: "staffcaller-crm-api",
-  description: "StaffCaller Cloud CRM and automatic call audio synchronization platform",
-  version: "1.0.0",
-  url: "https://staffcaller.cloud/api/v1",
-  endpoint: "https://staffcaller.cloud/api/v1",
-  homepage: "https://staffcaller.cloud",
-  capabilities: {
-    tools: true,
-    resources: true,
-    prompts: false
-  },
-  endpoints: {
-    api: "https://staffcaller.cloud/api/v1",
-    health: "https://staffcaller.cloud/health"
-  },
-  authentication: {
-    type: "bearer",
-    tokenEndpoint: "https://staffcaller.cloud/api/v1/auth/login"
-  }
-};
 
 const LANDING_PAGE_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -140,7 +58,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>StaffCaller — Automatic Call Recording Sync & Sales CRM</title>
-  <meta name="description" content="StaffCaller is a production SaaS CRM for automatic call tracking, Android call recording synchronization, WhatsApp integration, and round-robin lead distribution.">
+  <meta name="description" content="StaffCaller is an enterprise SaaS CRM for automatic call tracking, Android call recording synchronization, WhatsApp integration, and round-robin lead distribution.">
   <meta name="keywords" content="CRM, call tracking, call recording sync, sales CRM, Android call sync, lead distribution, WhatsApp CRM">
   <link rel="canonical" href="https://staffcaller.cloud/">
   <link rel="icon" type="image/png" href="/icon.png">
@@ -170,20 +88,12 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
         "url": "https://staffcaller.cloud",
         "email": "support@staffcaller.cloud",
         "telephone": "+1-800-555-0199",
-        "address": {
-          "@type": "PostalAddress",
-          "addressCountry": "US",
-          "addressLocality": "San Francisco"
-        },
         "contactPoint": {
           "@type": "ContactPoint",
           "telephone": "+1-800-555-0199",
           "email": "support@staffcaller.cloud",
           "contactType": "customer service"
-        },
-        "sameAs": [
-          "https://github.com/yolopment/crm-lead-app"
-        ]
+        }
       },
       {
         "@type": "SoftwareApplication",
@@ -207,23 +117,6 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       }
     ]
   }
-  </script>
-
-  <!-- WebMCP Agent Tools Registration -->
-  <script>
-    if (typeof window !== 'undefined' && window.navigator && window.navigator.modelContext && typeof window.navigator.modelContext.registerTool === 'function') {
-      try {
-        window.navigator.modelContext.registerTool({
-          name: 'get_staffcaller_status',
-          description: 'Get current system status and health of StaffCaller Cloud CRM',
-          inputSchema: { type: 'object', properties: {} },
-          execute: async function() {
-            const res = await fetch('/health');
-            return await res.json();
-          }
-        });
-      } catch(e) {}
-    }
   </script>
 
   <style>
@@ -272,10 +165,14 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       padding: 0.2rem 0.5rem;
       border-radius: 9999px;
     }
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
     nav a {
       color: var(--text-muted);
       text-decoration: none;
-      margin-left: 1.5rem;
       font-size: 0.95rem;
       transition: color 0.2s;
     }
@@ -300,7 +197,6 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       border: 1px solid var(--card-border);
       color: var(--text);
       background: var(--card-bg);
-      margin-left: 0.75rem;
     }
     .btn-outline:hover { background: rgba(255,255,255,0.08); }
     
@@ -349,33 +245,6 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
     .card h3 { font-size: 1.2rem; margin-bottom: 0.5rem; color: #fff; }
     .card p { font-size: 0.95rem; color: var(--text-muted); }
 
-    .status-banner {
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 8px;
-      padding: 1rem 1.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 3rem;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      background-color: #10b981;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 0.5rem;
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0% { opacity: 0.6; }
-      50% { opacity: 1; }
-      100% { opacity: 0.6; }
-    }
-
     footer {
       border-top: 1px solid var(--card-border);
       padding: 2.5rem 2rem;
@@ -404,23 +273,12 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
     <nav>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
-      <a href="/health">Health</a>
       <a href="/downloads/staffcaller.apk" class="btn btn-outline" style="border-color: #3b82f6; color: #60a5fa;">Download APK</a>
       <a href="/login" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">CRM Sign In</a>
     </nav>
   </header>
 
   <main>
-    <div class="status-banner">
-      <div>
-        <span class="status-dot"></span>
-        <strong>StaffCaller Cloud Platform Active</strong> — Connected to Hostinger Cloud Infrastructure.
-      </div>
-      <div>
-        <a href="/health" style="color: #6ee7b7; text-decoration: none; font-weight: 500;">View System Health &rarr;</a>
-      </div>
-    </div>
-
     <section class="hero">
       <h1>Automatic Call Tracking &amp; Sales CRM Platform</h1>
       <p>Seamlessly synchronize phone call recordings directly from Android agent devices. Manage leads with intelligent round-robin routing, WhatsApp Web follow-ups, and instant zero-buffering audio streaming.</p>
@@ -431,7 +289,6 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
         </a>
         <a href="/login" class="btn btn-outline">Sign In to CRM</a>
         <a href="/register" class="btn btn-outline">Create Workspace</a>
-        <a href="/llms.txt" class="btn btn-outline">API &amp; Agent Docs</a>
       </div>
     </section>
 
@@ -463,7 +320,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       <div class="card">
         <div class="card-icon">☁️</div>
         <h3>Dual Cloud Storage</h3>
-        <p>Flexible storage pipelines supporting local Hostinger high-speed SSD disk, Cloudflare R2 zero-egress bucket, and client Google Drive synchronization.</p>
+        <p>Flexible storage pipelines supporting local high-speed SSD disk, Cloudflare R2 zero-egress bucket, and client Google Drive synchronization.</p>
       </div>
 
       <div class="card">
@@ -476,7 +333,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
 
   <footer>
     <div>
-      &copy; 2026 StaffCaller Cloud. Hosted on Hostinger. All rights reserved.
+      &copy; 2026 StaffCaller Cloud. All rights reserved.
       <br>Contact: <a href="mailto:support@staffcaller.cloud">support@staffcaller.cloud</a> &bull; Tel: <a href="tel:+18005550199">+1 (800) 555-0199</a>
     </div>
     <div class="footer-links">
@@ -484,10 +341,6 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       <a href="/contact">Contact</a>
       <a href="/terms">Terms of Service</a>
       <a href="/privacy">Privacy Policy</a>
-      <a href="/robots.txt">robots.txt</a>
-      <a href="/sitemap.xml">sitemap.xml</a>
-      <a href="/llms.txt">llms.txt</a>
-      <a href="/.well-known/mcp/server-card.json">MCP Card</a>
     </div>
   </footer>
 </body>
@@ -524,16 +377,9 @@ function renderSimplePage(title: string, content: string) {
 </html>`;
 }
 
-// 1. Root route with Markdown negotiation & RFC 8288 Link header
+// 1. Root route
 router.get('/', (req: Request, res: Response) => {
-  res.setHeader('Link', '<https://staffcaller.cloud/llms.txt>; rel="alternate"; type="text/markdown"');
   res.setHeader('Cache-Control', 'public, max-age=3600');
-
-  if (req.headers.accept?.includes('text/markdown')) {
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    return res.send(LLMS_TEXT);
-  }
-
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(LANDING_PAGE_HTML);
 });
@@ -552,27 +398,7 @@ router.get('/sitemap.xml', (req: Request, res: Response) => {
   res.send(SITEMAP_XML);
 });
 
-// 4. llms.txt & llms-full.txt
-router.get('/llms.txt', (req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.send(LLMS_TEXT);
-});
-
-router.get('/llms-full.txt', (req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.send(LLMS_TEXT);
-});
-
-// 5. SEP-1649 MCP Server Card
-router.get('/.well-known/mcp/server-card.json', (req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.json(MCP_SERVER_CARD);
-});
-
-// 6. Trust anchor pages: About, Contact, Terms, Privacy
+// 4. Trust anchor pages: About, Contact, Terms, Privacy
 router.get('/about', (req: Request, res: Response) => {
   res.send(renderSimplePage('About StaffCaller', `
     <p>StaffCaller Cloud is an automated call intelligence and customer relationship management platform designed for enterprise sales and support teams.</p>
@@ -582,10 +408,9 @@ router.get('/about', (req: Request, res: Response) => {
 
 router.get('/contact', (req: Request, res: Response) => {
   res.send(renderSimplePage('Contact Support & Inquiries', `
-    <p>We are here to assist with platform deployment, companion app configuration, and enterprise API access.</p>
+    <p>We are here to assist with platform deployment, companion app configuration, and team onboarding.</p>
     <p><strong>Primary Support Email:</strong> <a href="mailto:support@staffcaller.cloud">support@staffcaller.cloud</a></p>
     <p><strong>Phone:</strong> <a href="tel:+18005550199">+1 (800) 555-0199</a></p>
-    <p><strong>Engineering & Infrastructure:</strong> Hosted on Hostinger Cloud Infrastructure.</p>
   `));
 });
 
@@ -603,7 +428,7 @@ router.get('/privacy', (req: Request, res: Response) => {
   `));
 });
 
-// 7. Static Next.js chunks & public assets
+// 5. Static Next.js chunks & public assets
 router.use('/_next', (req: Request, res: Response, next) => {
   const nextPath = getPublicPath('_next');
   if (nextPath) {
@@ -636,7 +461,7 @@ router.use('/downloads', (req: Request, res: Response, next) => {
   next();
 });
 
-// 8. Super Admin Portal routes (Direct confidential access only; no public buttons)
+// 6. Super Admin Portal routes (Direct confidential access only; no public buttons)
 router.get(['/superadmin/login', '/superadmin/login/'], (req: Request, res: Response) => {
   const loginPath = getPublicPath('superadmin/login/index.html');
   if (loginPath) {
@@ -666,7 +491,7 @@ router.get('/superadmin/:section*', (req: Request, res: Response) => {
   res.redirect('/superadmin/login');
 });
 
-// 9. Tenant CRM Portal & Dashboard routes
+// 7. Tenant CRM Portal & Dashboard routes
 router.get(['/login', '/login/'], (req: Request, res: Response) => {
   const loginPath = getPublicPath('login/index.html');
   if (loginPath) {
