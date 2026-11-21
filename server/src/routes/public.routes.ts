@@ -405,6 +405,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
       <a href="/health">Health</a>
+      <a href="/downloads/staffcaller.apk" class="btn btn-outline" style="border-color: #3b82f6; color: #60a5fa;">Download APK</a>
       <a href="/login" class="btn btn-outline">CRM Sign In</a>
       <a href="/superadmin" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Super Admin</a>
     </nav>
@@ -425,9 +426,13 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
       <h1>Automatic Call Tracking &amp; Sales CRM Platform</h1>
       <p>Seamlessly synchronize phone call recordings directly from Android agent devices. Manage leads with intelligent round-robin routing, WhatsApp Web follow-ups, and instant zero-buffering audio streaming.</p>
       <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
-        <a href="/login" class="btn btn-primary">Sign In to CRM</a>
+        <a href="/downloads/staffcaller.apk" class="btn btn-primary" style="background: #2563eb; display: inline-flex; align-items: center; gap: 8px;">
+          <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          Download StaffCaller APK
+        </a>
+        <a href="/login" class="btn btn-outline">Sign In to CRM</a>
         <a href="/superadmin" class="btn btn-outline">Super Admin Portal</a>
-        <a href="/llms.txt" class="btn btn-outline">API &amp; Agent Docs (llms.txt)</a>
+        <a href="/llms.txt" class="btn btn-outline">API &amp; Agent Docs</a>
       </div>
     </section>
 
