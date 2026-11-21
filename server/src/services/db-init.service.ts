@@ -37,6 +37,26 @@ export async function initDatabase() {
 
   if (!tablesExist) return;
 
+  // Ensure database schema has latest columns (e.g. customPriceMonthly, customPriceYearly)
+  try {
+    await prisma.organization.findFirst({
+      select: { id: true, customPriceMonthly: true },
+    });
+  } catch (colErr: any) {
+    console.log('🔄 Schema update required for Organization table. Syncing Prisma schema...');
+    try {
+      const prismaCli = './node_modules/prisma/build/index.js';
+      const cmd = `${process.execPath} ${prismaCli} db push --schema=./prisma/schema.prisma --skip-generate --accept-data-loss`;
+      const output = execSync(cmd, {
+        encoding: 'utf-8',
+        env: { ...process.env, PATH: `${process.env.PATH}:./node_modules/.bin` },
+      });
+      console.log('✅ Database schema updated with latest columns!\n', output);
+    } catch (pushErr: any) {
+      console.error('❌ Failed to push Prisma schema update to database:', pushErr.message);
+    }
+  }
+
   // 1. Ensure SaasAdmin exists
   try {
     const adminCount = await prisma.saasAdmin.count();
