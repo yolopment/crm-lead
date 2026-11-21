@@ -10,7 +10,11 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!isLoading) {
-      router.replace(user ? '/dashboard/calls' : '/login');
+      if (typeof window !== 'undefined') {
+        window.location.href = user ? '/dashboard/calls/' : '/login/';
+      } else {
+        router.replace(user ? '/dashboard/calls/' : '/login/');
+      }
     }
   }, [user, isLoading, router]);
 

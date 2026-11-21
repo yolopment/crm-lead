@@ -116,7 +116,7 @@ model Plan {
   maxLeads            Int          @default(500)
   storageQuotaBytes   BigInt       @default(1073741824)  // 1 GB = 1073741824 bytes
   maxCallsPerMonth    Int          @default(1000)
-  features            String?      @default("{}") @db.Text // JSON string of feature flags
+  features            String?      @db.Text // JSON string of feature flags
   isActive            Boolean      @default(true)
   sortOrder           Int          @default(0)
   createdAt           DateTime     @default(now())
@@ -437,11 +437,11 @@ model Form {
   status           String       @default("ACTIVE") // ACTIVE, DRAFT, PAUSED
   description      String?
   formCode         String?      @default("F-1")
-  fieldsJson       String       @default("[]") @db.Text
+  fieldsJson       String       @db.Text
   sectionsCount    Int          @default(1)
   submissionsCount Int          @default(0)
-  settingsJson     String?      @default("{}") @db.Text
-  customizeJson    String?      @default("{}") @db.Text
+  settingsJson     String?      @db.Text
+  customizeJson    String?      @db.Text
   createdByName    String?      @default("Aftab Sk")
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -457,7 +457,7 @@ model Integration {
   provider     String       // meta_lead_ads, google_sheets, google_ads, indiamart, custom_api, zapier, make, frappe
   name         String
   status       String       @default("DISCONNECTED") // CONNECTED, DISCONNECTED, ERROR
-  configJson   String?      @default("{}") @db.Text
+  configJson   String?      @db.Text
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
