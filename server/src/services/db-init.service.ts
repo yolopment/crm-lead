@@ -1,7 +1,93 @@
 import { execSync } from 'child_process';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
 import { PlanTier, OrgStatus, Role } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
+import { config } from '../config/index.js';
+
+/**
+ * Completely purges all tenant organizations, users, leads, calls, recordings, and subscriptions.
+ * Preserves ONLY the SaaS Super Admin login and system Plan tiers.
+ */
+export async function purgeAllTenantData() {
+  console.log('🚨 PURGING ALL TENANT DATA FROM DATABASE...');
+
+  try {
+    // 1. Delete dependent child records
+    await prisma.storageUsageLog.deleteMany({});
+    await prisma.invoice.deleteMany({});
+    await prisma.subscription.deleteMany({});
+    await prisma.whatsAppMessage.deleteMany({});
+    await prisma.whatsAppSession.deleteMany({});
+    await prisma.smsMessage.deleteMany({});
+    await prisma.form.deleteMany({});
+    await prisma.integration.deleteMany({});
+    await prisma.doNotTrack.deleteMany({});
+    await prisma.privateNumber.deleteMany({});
+    await prisma.invitation.deleteMany({});
+    await prisma.followUp.deleteMany({});
+    await prisma.note.deleteMany({});
+    await prisma.call.deleteMany({});
+    await prisma.lead.deleteMany({});
+    await prisma.device.deleteMany({});
+
+    // 2. Delete all users and organizations
+    const deletedUsers = await prisma.user.deleteMany({});
+    const deletedOrgs = await prisma.organization.deleteMany({});
+
+    // 3. Ensure Super Admin account exists and is valid
+    const hashedPassword = await bcrypt.hash('SuperAdmin@123', 10);
+    await prisma.saasAdmin.upsert({
+      where: { email: 'admin@crmlead.com' },
+      update: {
+        password: hashedPassword,
+        name: 'Platform Admin',
+        saasRole: 'SUPER_ADMIN',
+      },
+      create: {
+        email: 'admin@crmlead.com',
+        password: hashedPassword,
+        name: 'Platform Admin',
+        saasRole: 'SUPER_ADMIN',
+      },
+    });
+
+    // 4. Remove physical recordings files
+    try {
+      const recordingsDir = config.recordingsDir;
+      if (recordingsDir && fs.existsSync(recordingsDir)) {
+        const files = fs.readdirSync(recordingsDir);
+        for (const file of files) {
+          if (file !== '.gitkeep') {
+            const filePath = path.join(recordingsDir, file);
+            try {
+              if (fs.lstatSync(filePath).isDirectory()) {
+                fs.rmSync(filePath, { recursive: true, force: true });
+              } else {
+                fs.unlinkSync(filePath);
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    } catch (fileErr) {
+      console.error('Error clearing audio recordings directory:', fileErr);
+    }
+
+    console.log(`✅ DATABASE PURGE COMPLETE: Cleared ${deletedOrgs.count} organizations, ${deletedUsers.count} users.`);
+    return {
+      success: true,
+      cleared: {
+        organizations: deletedOrgs.count,
+        users: deletedUsers.count,
+      },
+    };
+  } catch (err: any) {
+    console.error('❌ Error during purgeAllTenantData:', err);
+    throw err;
+  }
+}
 
 export async function initDatabase() {
   console.log('🔍 Checking database status...');
@@ -162,38 +248,15 @@ export async function initDatabase() {
     console.error('⚠️ Error seeding SaaS admin/plans:', seedErr);
   }
 
-  // 2. Ensure Default Tenant Organization & Admin exist
+  // Check if a purge trigger exists for fresh start
   try {
-    const org = await prisma.organization.upsert({
-      where: { slug: 'yolopment' },
-      update: {},
-      create: {
-        name: 'YOLOPMENT PRIVATE LIMITED',
-        slug: 'yolopment',
-        phone: '9775192725',
-        website: 'https://leadzam.com',
-        orgStatus: OrgStatus.ACTIVE,
-      },
-    });
-
-    const tenantPassword = await bcrypt.hash('admin123', 10);
-    await prisma.user.upsert({
-      where: { email: 'yolopment@gmail.com' },
-      update: {},
-      create: {
-        orgId: org.id,
-        name: 'AFTAB SEKH',
-        email: 'yolopment@gmail.com',
-        password: tenantPassword,
-        phone: '9775192725',
-        role: Role.ADMIN,
-        deviceToken: 'c89fae019b88231c',
-        isOnLeave: false,
-      },
-    });
-
-    console.log('✅ Tenant Admin (yolopment@gmail.com) verified/created!');
-  } catch (tenantErr) {
-    console.error('⚠️ Error seeding tenant admin:', tenantErr);
+    const triggerFile = path.resolve(process.cwd(), 'PURGE_TENANTS.trigger');
+    if (fs.existsSync(triggerFile)) {
+      console.log('⚡ Found PURGE_TENANTS.trigger! Executing database purge...');
+      await purgeAllTenantData();
+      try { fs.unlinkSync(triggerFile); } catch (e) {}
+    }
+  } catch (triggerErr) {
+    console.error('Trigger check error:', triggerErr);
   }
 }

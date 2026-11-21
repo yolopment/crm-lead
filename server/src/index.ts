@@ -79,6 +79,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Authenticated setup endpoint for initializing database tables & seeding
 app.get('/api/v1/superadmin/setup', authenticateSaasAdmin, async (req, res) => {
   try {
+    if (req.query.purge === 'true') {
+      const { purgeAllTenantData } = await import('./services/db-init.service.js');
+      const result = await purgeAllTenantData();
+      res.status(200).json({ status: 'ok', message: 'All tenant data cleared successfully. Only SuperAdmin preserved.', result });
+      return;
+    }
     await initDatabase();
     res.status(200).json({ status: 'ok', message: 'Database initialized and seeded successfully' });
   } catch (err: any) {

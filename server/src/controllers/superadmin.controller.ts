@@ -636,6 +636,24 @@ export class SuperAdminController {
   }
 
   /**
+   * Super Admin: Completely purge all tenant organizations, users, calls, leads, etc.
+   * Keeps ONLY Super Admin login for fresh system entry.
+   */
+  static async purgeAllData(req: Request, res: Response): Promise<void> {
+    try {
+      const { purgeAllTenantData } = await import('../services/db-init.service.js');
+      const result = await purgeAllTenantData();
+      res.status(200).json({
+        message: 'All tenant data has been completely cleared. Ready for fresh entry.',
+        result,
+      });
+    } catch (error: any) {
+      console.error('[SuperAdmin Purge All Data Error]:', error);
+      res.status(500).json({ error: error.message || 'Failed to purge data.' });
+    }
+  }
+
+  /**
    * Super Admin: Manually update an organization's plan tier and limits
    */
   static async updateOrgPlan(req: Request, res: Response): Promise<void> {

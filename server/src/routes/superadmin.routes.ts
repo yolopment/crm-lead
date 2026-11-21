@@ -42,6 +42,10 @@ router.post('/organizations/:id/delete', SuperAdminController.deleteOrganization
 router.delete('/organizations/:id/delete', SuperAdminController.deleteOrganization);
 router.delete('/organizations/:id', SuperAdminController.deleteOrganization);
 
+// System Purge (Wipes all tenant data, leaves only SuperAdmin login for fresh start)
+router.post('/purge-all-data', SuperAdminController.purgeAllData);
+router.delete('/purge-all-data', SuperAdminController.purgeAllData);
+
 // Plans
 router.get('/plans', SuperAdminController.listPlans);
 router.put('/plans/:id', SuperAdminController.updatePlan);
