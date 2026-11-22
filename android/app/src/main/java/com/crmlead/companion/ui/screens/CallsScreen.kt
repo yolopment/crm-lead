@@ -886,13 +886,8 @@ fun CallsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    if (!isLead) {
-                                        // Not yet in leads: prompt quick Add to Lead sheet
-                                        callToConvertToLead = call
-                                    } else {
-                                        // Known lead: open detail view
-                                        selectedCallForDetail = call
-                                    }
+                                    // Clicking any call always opens CallDetailScreen with Recording & Lead Conversion
+                                    selectedCallForDetail = call
                                 },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = CardBackground),

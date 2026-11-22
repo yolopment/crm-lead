@@ -220,117 +220,9 @@ fun CallDetailScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Action Buttons: [+ Add outcome] & [+ Convert to Lead]
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = { showOutcomeSheet = true },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (currentCall.notes.isNullOrBlank() && currentCall.tags.isNullOrBlank()) "Outcome" else "Outcome",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-
-                Button(
-                    onClick = { showConvertSheet = true },
-                    modifier = Modifier
-                        .weight(1.3f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
-                ) {
-                    Icon(Icons.Default.PersonAdd, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Convert to Lead",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
-
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3 Quick Action Buttons: [Call] [WhatsApp] [Open lead] matching Screenshots 7 & 9
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Call
-                OutlinedButton(
-                    onClick = {
-                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${currentCall.phoneNumber}"))
-                        context.startActivity(dialIntent)
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardBackground),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
-                ) {
-                    Icon(Icons.Default.Phone, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Call", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-                }
-
-                // WhatsApp
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            val cleanPhone = currentCall.phoneNumber.replace("+", "").replace(" ", "").trim()
-                            val waIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$cleanPhone"))
-                            context.startActivity(waIntent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Could not open WhatsApp", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1.1f)
-                        .height(44.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardBackground),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
-                ) {
-                    Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("WhatsApp", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-                }
-
-                // Open Lead
-                OutlinedButton(
-                    onClick = { onOpenLead(currentCall.phoneNumber) },
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .height(44.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardBackground),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
-                ) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = TextDark, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Open lead", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Audio Player Card matching Screenshots 7 & 9
+            // 1. PRIMARY AUDIO RECORDING PLAYER (Prominently displayed at top)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -339,13 +231,53 @@ fun CallDetailScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.GraphicEq,
+                                contentDescription = null,
+                                tint = if (!currentCall.audioFilePath.isNullOrEmpty()) Color(0xFF16A34A) else TextSubtle,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Call Recording",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = TextDark
+                            )
+                        }
+
+                        // Status Badge
+                        val hasLocalAudio = !currentCall.audioFilePath.isNullOrEmpty() && File(currentCall.audioFilePath!!).exists()
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (hasLocalAudio) Color(0xFFDCFCE7) else Color(0xFFF1F5F9))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = if (hasLocalAudio) "Recording Ready" else "Audio Pending",
+                                color = if (hasLocalAudio) Color(0xFF166534) else TextSubtle,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         // Play/Pause circular button
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF0F172A))
                                 .clickable { togglePlayPause() },
@@ -353,9 +285,9 @@ fun CallDetailScreen(
                         ) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = null,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(26.dp)
                             )
                         }
 
@@ -399,7 +331,183 @@ fun CallDetailScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Collapsible "Call info" Card matching Screenshots 9 & 10
+            // 2. LEAD CONVERSION & NAVIGATION SECTION
+            val isLead = !currentCall.contactName.isNullOrBlank() && currentCall.contactName != currentCall.phoneNumber
+
+            if (!isLead) {
+                // Banner & Button when Caller is NOT A LEAD
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7).copy(alpha = 0.5f)),
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFFDE68A)))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.PersonAdd,
+                                contentDescription = null,
+                                tint = Color(0xFFD97706),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Not a CRM Lead",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color(0xFF92400E)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "This caller is not in your CRM leads. Convert to track pipeline stage, notes, and deals.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFB45309)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { showConvertSheet = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                        ) {
+                            Icon(Icons.Default.PersonAdd, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Convert into Lead",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Banner & Button when Caller IS ALREADY A LEAD
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFBBF7D0)))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF16A34A),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "CRM Lead: ${currentCall.contactName}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color(0xFF166534)
+                                )
+                                Text(
+                                    text = "Active in CRM pipeline · calls linked to this lead",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF15803D)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { onOpenLead(currentCall.phoneNumber) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Go to Lead Page →",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. ACTION BUTTONS: [Outcome] [Call] [WhatsApp]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Outcome
+                Button(
+                    onClick = { showOutcomeSheet = true },
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Outcome",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                // Call Native Dialer
+                OutlinedButton(
+                    onClick = {
+                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${currentCall.phoneNumber}"))
+                        context.startActivity(dialIntent)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardBackground),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
+                ) {
+                    Icon(Icons.Default.Phone, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Call", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+                }
+
+                // WhatsApp Chat
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val cleanPhone = currentCall.phoneNumber.replace("+", "").replace(" ", "").trim()
+                            val waIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$cleanPhone"))
+                            context.startActivity(waIntent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Could not open WhatsApp", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardBackground),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BorderLight))
+                ) {
+                    Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("WhatsApp", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 4. COLLAPSIBLE CALL INFO CARD
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -414,7 +522,7 @@ fun CallDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Call info", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                        Text("Call info & metadata", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                         Icon(
                             imageVector = if (callInfoExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                             contentDescription = null,
@@ -451,6 +559,19 @@ fun CallDetailScreen(
                                 Text("Direction", fontSize = 13.sp, color = TextSubtle)
                                 Text(
                                     if (currentCall.direction.equals("OUTBOUND", ignoreCase = true)) "Outgoing" else "Incoming",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                            }
+                            // SIM Slot Used
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("SIM Slot", fontSize = 13.sp, color = TextSubtle)
+                                Text(
+                                    if (currentCall.simSlot != null) "SIM ${currentCall.simSlot!! + 1}" else "Default SIM",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextDark
@@ -511,6 +632,14 @@ fun CallDetailScreen(
                 currentCall = currentCall.copy(contactName = newName)
                 onOutcomeSaved(currentCall)
                 showConvertSheet = false
+                coroutineScope.launch(Dispatchers.IO) {
+                    try {
+                        val db = com.crmlead.companion.data.AppDatabase.getDatabase(context)
+                        db.callDao().updateContactNameByPhone(currentCall.phoneNumber, newName)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
         )
     }
