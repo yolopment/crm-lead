@@ -1124,6 +1124,7 @@ export default function CallsDashboard() {
                         <span>·</span>
                         <span>
                           {new Date(call.startedAt).toLocaleString('en-IN', {
+                            timeZone: 'Asia/Kolkata',
                             month: 'short',
                             day: 'numeric',
                             hour: 'numeric',
@@ -1145,9 +1146,11 @@ export default function CallsDashboard() {
                   </div>
 
                   <div className="flex items-center gap-3 self-end md:self-center">
-                    <span className="text-xs text-slate-400 font-mono">
-                      {call.durationFormatted}
-                    </span>
+                    {!call.hasAudio && (
+                      <span className="text-xs text-slate-400 font-mono">
+                        {call.durationFormatted}
+                      </span>
+                    )}
 
                     {call.hasAudio ? (
                       <div className="flex items-center gap-1.5">

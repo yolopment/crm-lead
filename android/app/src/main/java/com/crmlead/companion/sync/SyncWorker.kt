@@ -72,6 +72,9 @@ class SyncWorker(
             // 1. Sync Call Metadata
             val unsyncedCalls = db.callDao().getUnsyncedCalls()
             if (unsyncedCalls.isNotEmpty()) {
+                val isoUtcFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }
                 val callsArray = JSONArray()
                 for (call in unsyncedCalls) {
                     val callJson = JSONObject().apply {
@@ -82,9 +85,9 @@ class SyncWorker(
                         put("direction", call.direction)
                         put("status", call.status)
                         put("durationSec", call.durationSec)
-                        put("startedAt", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date(call.startedAt)))
+                        put("startedAt", isoUtcFormat.format(java.util.Date(call.startedAt)))
                         if (call.endedAt != null) {
-                            put("endedAt", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date(call.endedAt)))
+                            put("endedAt", isoUtcFormat.format(java.util.Date(call.endedAt)))
                         }
                         put("hasAudio", call.audioFilePath != null)
                     }

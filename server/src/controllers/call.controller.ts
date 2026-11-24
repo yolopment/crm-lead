@@ -38,7 +38,22 @@ export class CallController {
 
         // Clean phone number (strip whitespace, dashes)
         const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
-        const callStartTime = startedAt ? new Date(startedAt) : new Date();
+        let callStartTime = startedAt ? new Date(startedAt) : new Date();
+
+        // Guard against future timestamps caused by double timezone offset (e.g. phone sent local time with 'Z')
+        const nowMs = Date.now();
+        if (callStartTime.getTime() > nowMs + 60000) {
+          const diffMs = callStartTime.getTime() - nowMs;
+          const istOffsetMs = 5.5 * 3600 * 1000;
+          if (diffMs > 0 && diffMs <= 14 * 3600 * 1000) {
+            if (Math.abs(diffMs - istOffsetMs) < 3600 * 1000 * 4) {
+              callStartTime = new Date(callStartTime.getTime() - istOffsetMs);
+            } else {
+              callStartTime = new Date(nowMs);
+            }
+          }
+        }
+
         const trimmedContactName = contactName?.trim();
 
         // Check if phone number is in Company DNT or User's Private Numbers
@@ -440,22 +455,36 @@ export class CallController {
         prisma.call.count({ where: whereClause }),
       ]);
 
-      const formattedCalls = calls.map((c) => ({
-        id: c.id,
-        phoneNumber: c.phoneNumber,
-        direction: c.direction,
-        status: c.status,
-        durationSec: c.durationSec,
-        durationFormatted: `${Math.floor(c.durationSec / 60)}m ${String(c.durationSec % 60).padStart(2, '0')}s`,
-        startedAt: c.startedAt,
-        notes: c.notes,
-        tags: c.tags,
-        hasAudio: !!c.audioPath,
-        audioUrl: c.audioPath ? `/api/v1/calls/${c.id}/audio` : null,
-        gdriveUrl: c.gdriveUrl || null,
-        agent: c.user,
-        lead: c.lead,
-      }));
+      const nowMs = Date.now();
+      const istOffsetMs = 5.5 * 3600 * 1000;
+
+      const formattedCalls = calls.map((c) => {
+        let displayStartedAt = c.startedAt;
+        // Fix historical calls affected by timezone double-offset (calls with future timestamp)
+        if (displayStartedAt && new Date(displayStartedAt).getTime() > nowMs) {
+          const diffMs = new Date(displayStartedAt).getTime() - nowMs;
+          if (diffMs > 0 && diffMs <= 14 * 3600 * 1000) {
+            displayStartedAt = new Date(new Date(displayStartedAt).getTime() - istOffsetMs);
+          }
+        }
+
+        return {
+          id: c.id,
+          phoneNumber: c.phoneNumber,
+          direction: c.direction,
+          status: c.status,
+          durationSec: c.durationSec,
+          durationFormatted: `${Math.floor(c.durationSec / 60)}m ${String(c.durationSec % 60).padStart(2, '0')}s`,
+          startedAt: displayStartedAt,
+          notes: c.notes,
+          tags: c.tags,
+          hasAudio: !!c.audioPath,
+          audioUrl: c.audioPath ? `/api/v1/calls/${c.id}/audio` : null,
+          gdriveUrl: c.gdriveUrl || null,
+          agent: c.user,
+          lead: c.lead,
+        };
+      });
 
       res.status(200).json({
         calls: formattedCalls,
