@@ -1,3 +1,4 @@
+import { Response } from 'express';
 import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
@@ -262,6 +263,64 @@ export async function uploadCallToClientDrive(
   } catch (err) {
     console.error(`Failed to upload recording to client Drive (org ${orgId}):`, err);
     return null;
+  }
+}
+
+/**
+ * Stream a call recording directly from client Google Drive API to Express response
+ */
+export async function streamCallFromClientDrive(
+  orgId: string,
+  fileId: string,
+  res: Response
+): Promise<boolean> {
+  const clientDriveData = await getClientDrive(orgId);
+  if (!clientDriveData) return false;
+
+  const { drive } = clientDriveData;
+  try {
+    let mimeType = 'audio/mp4';
+    let fileSize: number | undefined;
+
+    try {
+      const meta = await drive.files.get({
+        fileId,
+        fields: 'mimeType, size, name',
+      });
+      if (meta.data.mimeType && meta.data.mimeType !== 'application/octet-stream') {
+        mimeType = meta.data.mimeType;
+      }
+      if (meta.data.size) {
+        fileSize = parseInt(meta.data.size, 10);
+      }
+    } catch (metaErr) {
+      // Fallback to audio/mp4
+    }
+
+    const response = await drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Accept-Ranges', 'bytes');
+    if (fileSize && !isNaN(fileSize)) {
+      res.setHeader('Content-Length', fileSize.toString());
+    }
+
+    response.data
+      .on('error', (err: any) => {
+        console.error('Error in Client Google Drive audio stream:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to stream audio from Google Drive.' });
+        }
+      })
+      .pipe(res);
+
+    return true;
+  } catch (err: any) {
+    console.error(`Failed to stream file ${fileId} from client Drive (org ${orgId}):`, err);
+    return false;
   }
 }
 
@@ -631,6 +690,74 @@ export async function uploadCallToMasterDrive(
     console.error(`Failed to upload recording to Master Drive for org ${orgId}:`, err);
     return null;
   }
+}
+
+/**
+ * Stream a call recording directly from Super Admin Master Google Drive cluster to Express response
+ */
+export async function streamCallFromMasterDrive(
+  fileId: string,
+  res: Response
+): Promise<boolean> {
+  const accounts = await prisma.masterStorageAccount.findMany({
+    where: { status: 'ACTIVE' },
+    orderBy: { priority: 'asc' },
+  });
+
+  if (!accounts || accounts.length === 0) return false;
+
+  for (const account of accounts) {
+    try {
+      const client = await getClientForMasterAccount(account);
+      if (!client) continue;
+
+      const { drive } = client;
+      let mimeType = 'audio/mp4';
+      let fileSize: number | undefined;
+
+      try {
+        const meta = await drive.files.get({
+          fileId,
+          fields: 'mimeType, size, name',
+        });
+        if (meta.data.mimeType && meta.data.mimeType !== 'application/octet-stream') {
+          mimeType = meta.data.mimeType;
+        }
+        if (meta.data.size) {
+          fileSize = parseInt(meta.data.size, 10);
+        }
+      } catch {
+        // If file not found in this account, try next account
+        continue;
+      }
+
+      const response = await drive.files.get(
+        { fileId, alt: 'media' },
+        { responseType: 'stream' }
+      );
+
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Accept-Ranges', 'bytes');
+      if (fileSize && !isNaN(fileSize)) {
+        res.setHeader('Content-Length', fileSize.toString());
+      }
+
+      response.data
+        .on('error', (err: any) => {
+          console.error('Error in Master Google Drive audio stream:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to stream audio from Master Drive.' });
+          }
+        })
+        .pipe(res);
+
+      return true;
+    } catch {
+      // Continue to next master account
+    }
+  }
+
+  return false;
 }
 
 /**

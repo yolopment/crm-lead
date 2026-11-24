@@ -15,6 +15,7 @@ export default function AudioPlayer({ callId, durationSec, durationFormatted }: 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(durationSec || 0);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Use getAudioUrl which includes the JWT token as query param (required for native <audio> src)
@@ -28,12 +29,15 @@ export default function AudioPlayer({ callId, durationSec, durationFormatted }: 
       setIsPlaying(false);
     } else {
       setIsLoading(true);
+      setHasError(false);
       audioRef.current.play().then(() => {
         setIsPlaying(true);
         setIsLoading(false);
       }).catch((err) => {
         console.error('Audio play error:', err);
         setIsLoading(false);
+        setIsPlaying(false);
+        setHasError(true);
       });
     }
   };
@@ -72,6 +76,11 @@ export default function AudioPlayer({ callId, durationSec, durationFormatted }: 
         src={audioUrl}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onError={() => {
+          setIsPlaying(false);
+          setIsLoading(false);
+          setHasError(true);
+        }}
         onEnded={() => {
           setIsPlaying(false);
           setCurrentTime(0);

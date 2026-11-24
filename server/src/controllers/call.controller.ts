@@ -351,13 +351,13 @@ export class CallController {
         return;
       }
 
-      // Restrict audio playback: Agents can ONLY listen to their own calls
-      if (req.user!.role === Role.AGENT && call.userId !== req.user!.id) {
+      // Restrict audio playback: Agents can ONLY listen to their own calls (unless in Platform Support Mode)
+      if (req.user!.role === Role.AGENT && call.userId !== req.user!.id && !req.user!.isImpersonated) {
         res.status(403).json({ error: 'Forbidden: You cannot access audio recordings from another agent.' });
         return;
       }
 
-      await streamAudioOrRedirect(call.audioPath, req, res);
+      await streamAudioOrRedirect(call.audioPath, req, res, orgId);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Error streaming audio recording.' });
     }

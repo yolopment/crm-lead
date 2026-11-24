@@ -11,6 +11,7 @@ export interface AuthenticatedUser {
   role: Role;
   name: string;
   isOnLeave: boolean;
+  isImpersonated?: boolean;
 }
 
 declare global {
@@ -47,7 +48,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
         return;
       }
 
-      req.user = user;
+      req.user = {
+        ...user,
+        isImpersonated: false,
+      };
       next();
       return;
     }
@@ -105,7 +109,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    req.user = user;
+    req.user = {
+      ...user,
+      isImpersonated: !!(decoded as any).isImpersonated,
+    };
     next();
   } catch (error) {
     res.status(401).json({ error: 'Invalid or expired authentication token.' });

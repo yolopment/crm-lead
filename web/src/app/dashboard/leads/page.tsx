@@ -37,7 +37,7 @@ import {
   Send,
   ExternalLink,
 } from 'lucide-react';
-import { fetchWithAuth } from '@/lib/api';
+import { fetchWithAuth, getAudioUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Toast, Badge, TableRowSkeleton } from '@/components/ui';
 
@@ -420,8 +420,8 @@ export default function LeadsPage() {
       setPlayingCallId(null);
     } else {
       if (audioRef.current) {
-        audioRef.current.src = `/api/v1/calls/${callId}/audio`;
-        audioRef.current.play();
+        audioRef.current.src = getAudioUrl(callId);
+        audioRef.current.play().catch(console.error);
         setPlayingCallId(callId);
       }
     }

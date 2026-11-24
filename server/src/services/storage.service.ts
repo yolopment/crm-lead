@@ -12,7 +12,13 @@ import {
   streamFromGoogleDrive,
   isGoogleDriveConfigured,
 } from './gdrive.service.js';
-import { uploadCallToClientDrive, uploadCallToMasterDrive, getMasterDriveStatus } from './gdrive-oauth.service.js';
+import {
+  uploadCallToClientDrive,
+  uploadCallToMasterDrive,
+  getMasterDriveStatus,
+  streamCallFromClientDrive,
+  streamCallFromMasterDrive,
+} from './gdrive-oauth.service.js';
 
 // Format and normalize S3 / Cloudflare R2 endpoint
 const formattedEndpoint = config.s3Endpoint
@@ -356,33 +362,88 @@ export async function processAndSaveAudio(
 /**
  * Stream audio file or redirect to Cloudflare R2 / S3 pre-signed URL / Google Drive
  */
-export async function streamAudioOrRedirect(audioPath: string, req: Request, res: Response): Promise<void> {
+export async function streamAudioOrRedirect(
+  audioPath: string,
+  req: Request,
+  res: Response,
+  orgId?: string
+): Promise<void> {
+  const effectiveOrgId = orgId || (req as any).user?.orgId;
+
+  // 1. Google Drive direct URLs (extract file ID and stream binary audio directly)
   if (audioPath.startsWith('http://') || audioPath.startsWith('https://')) {
+    const driveMatch = audioPath.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([^/?&#]+)/);
+    if (driveMatch && driveMatch[1]) {
+      const fileId = driveMatch[1];
+      if (effectiveOrgId) {
+        const clientStreamed = await streamCallFromClientDrive(effectiveOrgId, fileId, res);
+        if (clientStreamed) return;
+      }
+      const masterStreamed = await streamCallFromMasterDrive(fileId, res);
+      if (masterStreamed) return;
+    }
     res.redirect(audioPath);
     return;
   }
 
-  // Client-connected Google Drive
-  if (audioPath.startsWith('client_gdrive:') || audioPath.startsWith('master_gdrive:')) {
+  // 2. Client-connected Google Drive
+  if (audioPath.startsWith('client_gdrive:')) {
     const parts = audioPath.split(':');
+    const fileId = parts[1];
+    if (fileId && effectiveOrgId) {
+      const streamed = await streamCallFromClientDrive(effectiveOrgId, fileId, res);
+      if (streamed) return;
+    }
+    // Fallback: try master drive cluster in case it was stored there
+    if (fileId) {
+      const masterStreamed = await streamCallFromMasterDrive(fileId, res);
+      if (masterStreamed) return;
+    }
+    // Fallback: if web view link is attached, redirect as last resort
     const webViewLink = parts.length >= 3 ? parts.slice(2).join(':') : null;
     if (webViewLink && (webViewLink.startsWith('http://') || webViewLink.startsWith('https://'))) {
       res.redirect(webViewLink);
       return;
     }
-    const fileId = parts[1];
-    res.redirect(`https://drive.google.com/file/d/${fileId}/view`);
-    return;
+    if (fileId) {
+      res.redirect(`https://drive.google.com/file/d/${fileId}/view`);
+      return;
+    }
   }
 
-  // Google Drive streaming (service account)
+  // 3. Super Admin Master Google Drive Cluster
+  if (audioPath.startsWith('master_gdrive:')) {
+    const parts = audioPath.split(':');
+    const fileId = parts[1];
+    if (fileId) {
+      const masterStreamed = await streamCallFromMasterDrive(fileId, res);
+      if (masterStreamed) return;
+    }
+    // Fallback: try client drive
+    if (fileId && effectiveOrgId) {
+      const clientStreamed = await streamCallFromClientDrive(effectiveOrgId, fileId, res);
+      if (clientStreamed) return;
+    }
+    // Fallback: if web view link is attached, redirect as last resort
+    const webViewLink = parts.length >= 3 ? parts.slice(2).join(':') : null;
+    if (webViewLink && (webViewLink.startsWith('http://') || webViewLink.startsWith('https://'))) {
+      res.redirect(webViewLink);
+      return;
+    }
+    if (fileId) {
+      res.redirect(`https://drive.google.com/file/d/${fileId}/view`);
+      return;
+    }
+  }
+
+  // 4. Google Drive streaming (service account)
   if (audioPath.startsWith('gdrive:')) {
     const fileId = audioPath.replace('gdrive:', '');
     await streamFromGoogleDrive(fileId, res);
     return;
   }
 
-  // Cloudflare R2 / S3 storage
+  // 5. Cloudflare R2 / S3 storage
   if (s3Client && (audioPath.startsWith('recordings/') || config.storageDriver !== 'local')) {
     if (config.s3PublicUrl) {
       const publicBase = config.s3PublicUrl.replace(/\/$/, '');
@@ -400,7 +461,7 @@ export async function streamAudioOrRedirect(audioPath: string, req: Request, res
     return;
   }
 
-  // Local VPS disk streaming
+  // 6. Local VPS disk streaming
   streamAudioFile(audioPath, req, res);
 }
 
